@@ -60,7 +60,7 @@ if [[ -n $_primary ]]; then
 		if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
 			# TODO: Find preferred mode. it is available through command completion
 			kscreen-doctor output."${_primary}".mode.2560x1440@120
-			kscreen-doctor output."${_primary}".vrrpolicy.enabled
+			kscreen-doctor output."${_primary}".vrrpolicy.automatic
 			kscreen-doctor output.HDMI-A-1.disable
 		else
 			wlr-randr --output "${_primary}" --mode 2560x1440 --adaptive-sync enabled
