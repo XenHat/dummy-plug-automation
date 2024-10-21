@@ -1,4 +1,4 @@
-# Dummmy Plug helper for Linux
+# Dummy Plug helper for Linux
 Automation for remote streaming using a dummy plug on Linux
 
 TODO: Write a README
