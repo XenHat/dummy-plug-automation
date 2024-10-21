@@ -1,9 +1,7 @@
 #!/usr/bin/bash
 _preferred_monitor=${PREFERRED_DISPLAY:-DP-1}
 _session_type=""
-# TODO: Test in other desktop environments. Currently adjusted for sway
 _session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep "active" -w))" -p Type | awk -F= '{print $2}')
-# session_from_systemd=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep "active" -w))" -p Type)
 if [[ -z $_session_type ]]; then
 	echo "Falling back to environment for session type detection"
 	environment=$(env)
@@ -26,9 +24,7 @@ if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
 else
 	echo "non-KDE Mode"
 	# is our preferred display enabled?
-	# TODO: hyprland, wayland, x11
 	# NOTE: wlr-randr has no concept of primary monitor
-	# TODO: verify output name format with NVIDIA and Intel again
 	# TODO: Make sure we don't disable the only present display
 	if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_preferred_monitor" -c) -gt 0 ]]; then
 		wlr-randr --output HDMI-A-1 --off
@@ -77,5 +73,12 @@ fi
 echo "reached the end"
 echo "======================================================"
 unset _preferred_monitor _session_type _primary _height _width_refresh
+
+# TODO: bspwm
+# TODO: COSMIC
+# TODO: GNOME
+# TODO: Hyprland
+# TODO: awesomewm, dwm, etc
+# TODO: NVIDIA and Intel gpus support
 
 # vim: ft=bash
