@@ -12,6 +12,7 @@ if [[ -z $_session_type ]]; then
 	elif grep -qc "DISPLAY" <<<"$environment"; then
 		_session_type="x11"
 	fi
+	unset environment
 fi
 _primary=""
 if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
@@ -75,5 +76,6 @@ if [[ -n $_primary ]]; then
 fi
 echo "reached the end"
 echo "======================================================"
+unset _preferred_monitor _session_type _primary _height _width_refresh
 
 # vim: ft=bash
