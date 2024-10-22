@@ -1,5 +1,14 @@
 #!/usr/bin/bash
+
+# User preferences
+# TODO: Fetch preferred mode from EDID
+_default_resolution=2560x1440
+_default_refresh_rate=120
+_default_vrr_mode=automatic
 _preferred_monitor=${PREFERRED_DISPLAY:-DP-1}
+
+
+# No configurable values below
 _session_type=""
 _session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep "active" -w))" -p Type | awk -F= '{print $2}')
 if [[ -z $_session_type ]]; then
@@ -59,8 +68,8 @@ if [[ -n $_primary ]]; then
 		# TODO: make disabling HDMI-A-1 optional
 		if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
 			# TODO: Find preferred mode. it is available through command completion
-			kscreen-doctor output."${_primary}".mode.2560x1440@120
-			kscreen-doctor output."${_primary}".vrrpolicy.automatic
+			kscreen-doctor output."${_primary}".mode.${_default_resolution}@${_default_refresh_rate}
+			kscreen-doctor output."${_primary}".vrrpolicy.${_default_vrr_mode}
 			kscreen-doctor output.HDMI-A-1.disable
 		else
 			wlr-randr --output "${_primary}" --mode 2560x1440 --adaptive-sync enabled
