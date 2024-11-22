@@ -1,89 +1,114 @@
-#!/usr/bin/bash
-
-# User preferences
+#!/usr/bin/env bash
+###########################################################
+###########################################################
+########### Start user configuration ######################
 # TODO: Fetch preferred mode from EDID
+# TODO: Multiple monitors support for saving and resuming modes
+# Resolution to restore to until default mode and/or mode restore is implemented
 _default_resolution=2560x1440
 _default_refresh_rate=120
 _default_vrr_mode=automatic
-_preferred_monitor=${PREFERRED_DISPLAY:-DP-1}
-
-
-# No configurable values below
-_session_type=""
+# FIXME: Non-predictable connector name.
+_dummy_plug=HDMI-A-1
+_preferred_monitor_index=1
+########### End of user configuration #####################
+###########################################################
+###########################################################
+### No configurable values below
 _session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep "active" -w))" -p Type | awk -F= '{print $2}')
-if [[ -z $_session_type ]]; then
-	echo "Falling back to environment for session type detection"
-	environment=$(env)
-	if grep -qc "WAYLAND_DISPLAY" <<<"$environment"; then
-		_session_type="wayland"
-	elif grep -qc "DISPLAY" <<<"$environment"; then
-		_session_type="x11"
-	fi
-	unset environment
+if [[ "$_session_type" != "x11" ]] && [[ "$_session_type" != "wayland" ]]; then
+  echo "Falling back to environment for session type detection"
+  environment=$(printenv)
+  if grep -qc "WAYLAND_DISPLAY" <<<"$environment"; then
+    _session_type="wayland"
+  elif grep -qc "DISPLAY" <<<"$environment"; then
+    _session_type="x11"
+  else
+    echo "Unknown session type: '$_session_type'. Please fix me!"
+    echo 0
+  fi
+  unset environment
 fi
+_connector_name_format="DP-"
+# One day, we'll have a bloody standard for connector names...
+if [[ "$_session_type" == "x11" ]]; then
+  _connector_name_format="DisplayPort-"
+  _dummy_plug=HDMI-A-0
+fi
+_preferred_monitor=${PREFERRED_DISPLAY:-${_connector_name_format}-${_preferred_monitor_index}}
 _primary=""
 if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
-	echo "KDE Mode"
-	outputs=$(kscreen-doctor -o | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g")
-	# transform output into lines, remove disabled outputs, and sort by priority, then return the output to prefer by priority
-	p=$(echo "$outputs" | grep -v "Modes" | grep Output -A4 | xargs | sed 's/Output\:/\n/g' | grep -v disabled | awk '{print $6 " " $2}' | sed '/^\s*$/d' | sort | head -n1 | cut -d ' ' -f 2)
-	echo "p: $p"
-	_primary=$(echo "$outputs" | /bin/grep -B3 -A0 "$p" | grep Output\: -B0 -A0 | cut -d ' ' -f 3)
-	unset p outputs
+  echo "KDE Mode"
+  outputs=$(kscreen-doctor -o | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g")
+  # transform output into lines, remove disabled outputs, and sort by priority, then return the output to prefer by priority
+  p=$(echo "$outputs" | grep -v "Modes" | grep Output -A4 | xargs | sed 's/Output\:/\n/g' | grep -v disabled | awk '{print $6 " " $2}' | sed '/^\s*$/d' | sort | head -n1 | cut -d ' ' -f 2)
+  echo "p: $p"
+  _primary=$(echo "$outputs" | /bin/grep -B3 -A0 "$p" | grep Output: -B0 -A0 | cut -d ' ' -f 3)
+  unset p outputs
+# TODO: Make this more readable
 else
-	echo "non-KDE Mode"
-	# is our preferred display enabled?
-	# NOTE: wlr-randr has no concept of primary monitor
-	# TODO: Make sure we don't disable the only present display
-	if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_preferred_monitor" -c) -gt 0 ]]; then
-		wlr-randr --output HDMI-A-1 --off
-		_primary=$_preferred_monitor
-	else
-		# fall back to HDMI-A-1
-		if wlr-randr | grep 'HDMI-A-1' -A5 | grep 'Enabled: no'; then
-			wlr-randr --output HDMI-A-1 --on
-		fi
-		_primary=HDMI-A-1
-	fi
-	# echo "unsupported yet"
-	# notify-send "Unsupported environment" "Resolution not adjusted"
-	# return 0
+  echo "non-KDE Mode"
+  # is our preferred display enabled?
+  if [[ "$_session_type" == "wayland" ]]; then
+    # NOTE: wlr-randr has no concept of primary monitor
+    # TODO: Make sure we don't disable the only present display
+    if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_preferred_monitor" -c) -gt 0 ]]; then
+      wlr-randr --output "$_dummy_plug" --off
+      _primary=$_preferred_monitor
+    else
+      if wlr-randr | grep "$_dummy_plug" -A5 | grep 'Enabled: no'; then
+        wlr-randr --output "$_dummy_plug" --on
+      fi
+      _primary=$_dummy_plug
+    fi
+  else
+    echo "FIXME: Implement X11 support here"
+    # TODO: properly handle 'disconnected primary'. Not sure HOW this happens, but I'm staring at it right now.
+    _primary=$(xrandr | grep connected -w | grep -v "${_dummy_plug}" | awk '{print $1}')
+  fi
+  # echo "unsupported yet"
+  # notify-send "Unsupported environment" "Resolution not adjusted"
+  # return 0
 fi
 echo "Primary output: $_primary"
 _height=${SUNSHINE_CLIENT_HEIGHT:-720}
 _width=${SUNSHINE_CLIENT_WIDTH:-1280}
 _refresh=${SUNSHINE_CLIENT_FPS:-60}
 if [[ -n $_primary ]]; then
-	if [[ $1 == "do" ]]; then
-		# TODO: X11 support using xrandr
-		if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
-			# sh -c \"if pgrep plasmashell; then output=`~/scripts/get_primary_monitor`; kscreen-doctor output.${output}.vrrpolicy.never; kscreen-doctor.output.${output}.mode.2560x1440@120; fi\""}]
-			# TODO: revisit once KDE has fully native support without Xwayland
-			kscreen-doctor output."${_primary}".mode."${_width}"x"${_height}"@"${_refresh}"
-			kscreen-doctor output."${_primary}".vrrpolicy.never
-		else
-			wlr-randr --output "${_primary}" --mode "${_width}"x"${_height}"@"${_refresh}" --adaptive-sync disabled
-		fi
-	elif [[ $1 == "undo" ]]; then
-		# TODO: make disabling HDMI-A-1 optional
-		if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
-			# TODO: Find preferred mode. it is available through command completion
-			kscreen-doctor output."${_primary}".mode.${_default_resolution}@${_default_refresh_rate}
-			kscreen-doctor output."${_primary}".vrrpolicy.${_default_vrr_mode}
-			kscreen-doctor output.HDMI-A-1.disable
-		else
-			wlr-randr --output "${_primary}" --mode 2560x1440 --adaptive-sync enabled
-			if [[ $_primary != "HDMI-A-1" ]]; then
-				wlr-randr --output HDMI-A-1 --off
-			fi
-		fi
-	fi
+  if [[ $1 == "do" ]]; then
+    # TODO: X11 support using xrandr
+    if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
+      # sh -c \"if pgrep plasmashell; then output=`~/scripts/get_primary_monitor`; kscreen-doctor output.${output}.vrrpolicy.never; kscreen-doctor.output.${output}.mode.2560x1440@120; fi\""}]
+      # TODO: revisit once KDE has fully native support without Xwayland
+      kscreen-doctor output."${_primary}".mode."${_width}"x"${_height}"@"${_refresh}"
+      kscreen-doctor output."${_primary}".vrrpolicy.never
+    elif [[ "$_session_type" == "wayland" ]]; then
+      wlr-randr --output "${_primary}" --mode "${_width}"x"${_height}"@"${_refresh}" --adaptive-sync disabled
+    else
+      xrandr --output "${_primary}" --mode "${_width}"x"${_height}" -r "${_refresh}"
+    fi
+  elif [[ $1 == "undo" ]]; then
+    # TODO: make disabling "$_dummy_plug" optional
+    if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
+      # TODO: Find preferred mode. it is available through command completion
+      kscreen-doctor output."${_primary}".mode.${_default_resolution}@${_default_refresh_rate}
+      kscreen-doctor output."${_primary}".vrrpolicy.${_default_vrr_mode}
+      kscreen-doctor output.${_dummy_plug}.disable
+    elif [[ "$_session_type" == "wayland" ]]; then
+      wlr-randr --output "${_primary}" --mode ${_default_resolution}@${_default_refresh_rate} --adaptive-sync ${_default_vrr_mode}
+      if [[ $_primary != "$_dummy_plug" ]]; then
+        wlr-randr --output "$_dummy_plug" --off
+      fi
+    else
+      xrandr --output "${_primary}" --mode ${_default_resolution} -r ${_default_refresh_rate}
+      if [[ $_primary != "$_dummy_plug" ]]; then
+        wlr-randr --output "$_dummy_plug" --off
+      fi
+    fi
+  fi
 fi
-echo "reached the end"
-echo "======================================================"
 unset _preferred_monitor _session_type _primary _height _width_refresh
 
-# TODO: bspwm
 # TODO: COSMIC
 # TODO: GNOME
 # TODO: Hyprland
