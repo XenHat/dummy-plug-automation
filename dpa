@@ -62,9 +62,8 @@ else
       _primary=$_dummy_plug
     fi
   else
-    echo "FIXME: Implement X11 support here"
     # TODO: properly handle 'disconnected primary'. Not sure HOW this happens, but I'm staring at it right now.
-    _primary=$(xrandr | grep connected -w | grep -v "${_dummy_plug}" | awk '{print $1}')
+    _primary=$(xrandr | grep connected -w | awk '{print $1}' | head -n1)
   fi
   # echo "unsupported yet"
   # notify-send "Unsupported environment" "Resolution not adjusted"
