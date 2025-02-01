@@ -57,6 +57,7 @@ else
 			_primary=$_preferred_monitor
 		else
 			if wlr-randr | grep "$_dummy_plug" -A5 | grep 'Enabled: no'; then
+				echo "DEBUG: Enabling $_preferred_monitor"
 				wlr-randr --output "$_dummy_plug" --on
 			fi
 			_primary=$_dummy_plug
@@ -81,6 +82,10 @@ if [[ -n $_primary ]]; then
 			# TODO: revisit once KDE has fully native support without Xwayland
 			kscreen-doctor output."${_primary}".mode."${_width}"x"${_height}"@"${_refresh}"
 			kscreen-doctor output."${_primary}".vrrpolicy.never
+		elif [[ "$DESKTOP_SESSION" == "hyprland" ]]; then
+			echo "Detected Hyprland"
+			hyprctl keyword monitor $_dummy_plug,enable
+			hyprctl keyword monitor $_primary,${_width}x${_height}@${_refresh},0x0,1,vrr,0
 		elif [[ "$_session_type" == "wayland" ]]; then
 			wlr-randr --output "${_primary}" --mode "${_width}"x"${_height}"@"${_refresh}" --adaptive-sync disabled
 		else
@@ -93,6 +98,10 @@ if [[ -n $_primary ]]; then
 			kscreen-doctor output."${_primary}".mode.${_default_resolution}@${_default_refresh_rate}
 			kscreen-doctor output."${_primary}".vrrpolicy.${_default_vrr_mode}
 			kscreen-doctor output.${_dummy_plug}.disable
+		elif [[ "$DESKTOP_SESSION" == "hyprland" ]]; then
+			echo "Detected Hyprland"
+			hyprctl keyword monitor $_primary,preferred,auto,1,vrr,1
+			hyprctl keyword monitor $_dummy_plug,disable
 		elif [[ "$_session_type" == "wayland" ]]; then
 			wlr-randr --output "${_primary}" --mode ${_default_resolution}@${_default_refresh_rate} --adaptive-sync ${_default_vrr_mode}
 			if [[ $_primary != "$_dummy_plug" ]]; then
