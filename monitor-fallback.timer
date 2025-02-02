@@ -1,0 +1,10 @@
+[Unit]
+Description=Dummy Plug monitor fallback
+Requires=monitor-fallback.service
+
+[Timer]
+Unit=monitor-fallback.service
+OnUnitActiveSec=60s
+
+[Install]
+WantedBy=timers.target

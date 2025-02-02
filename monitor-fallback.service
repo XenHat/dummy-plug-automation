@@ -1,0 +1,11 @@
+[Unit]
+Description=Dummy Plug monitor fallback
+Requires=monitor-fallback.service
+
+[Service]
+Type=simple
+ExecStart=%h/code/xenhat/dummy-plug-automation/monitor_fallback.bash
+
+
+[Install]
+WantedBy=graphical-session.target
