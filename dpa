@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 ###########################################################
-###########################################################
 ########### Start user configuration ######################
 # TODO: Fetch preferred mode from EDID
 # TODO: Multiple monitors support for saving and resuming modes
@@ -13,8 +12,23 @@ _dummy_plug=HDMI-A-1
 _preferred_monitor_index=1
 ########### End of user configuration #####################
 ###########################################################
-###########################################################
-### No configurable values below
+## No configurable values below
+function enable_fallback_hdmi() {
+	export WAYLAND_DISPLAY=wayland-1
+	if [[ $(wlr-randr | grep "${PREFERRED_DISPLAY:-DP-1}" -c) -lt 1 ]]; then
+		echo "Preferred monitor is not enabled"
+		if [[ $(wlr-randr | grep -A5 "HDMI-A-1" | grep 'Enabled: no' -c) -gt 0 ]]; then
+			echo "Re-enabling only monitor HDMI-A-1"
+			wlr-randr --output HDMI-A-1 --on
+		fi
+	else
+		wlr-randr --output HDMI-A-1 --off
+	fi
+}
+enable_fallback_hdmi
+# TODO: Organize refactor to do as little work as possible;
+# i.e. No need to check for session type if using Hyprland since it's wayland
+wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)'
 _session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep "active" -w))" -p Type | awk -F= '{print $2}')
 if [[ "$_session_type" != "x11" ]] && [[ "$_session_type" != "wayland" ]]; then
 	echo "Falling back to environment for session type detection"
@@ -35,8 +49,12 @@ if [[ "$_session_type" == "x11" ]]; then
 	_connector_name_format="DisplayPort-"
 	_dummy_plug=HDMI-A-0
 fi
+# TODO: Use desktop-specific methods here when possible
 _preferred_monitor=${PREFERRED_DISPLAY:-${_connector_name_format}-${_preferred_monitor_index}}
 _primary=""
+
+
+wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)'
 if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
 	echo "KDE Mode"
 	outputs=$(kscreen-doctor -o | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g")
@@ -48,8 +66,10 @@ if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
 	# TODO: Make this more readable
 else
 	echo "non-KDE Mode"
+	echo "DEBUG: Stage 1"
 	# is our preferred display enabled?
 	if [[ "$_session_type" == "wayland" ]]; then
+		echo "DEBUG: Stage 1: Wayland"
 		# NOTE: wlr-randr has no concept of primary monitor
 		# TODO: Make sure we don't disable the only present display
 		if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_preferred_monitor" -c) -gt 0 ]]; then
@@ -74,34 +94,65 @@ echo "Primary output: $_primary"
 _height=${SUNSHINE_CLIENT_HEIGHT:-720}
 _width=${SUNSHINE_CLIENT_WIDTH:-1280}
 _refresh=${SUNSHINE_CLIENT_FPS:-60}
+
+get_available_modes() {
+	wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)'
+}
+# get_available_modes "DP-1"
+function get_closest_mode() {
+	# TODO:use JQ to parse wlr-randr output and get the closest mode that matches
+	# wlr-randr --json | jq -j 'map(select(.name == "DP-1"))'
+	# set -x
+	out=$(wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)')
+	closest_rez=$(echo "$out" | fzf --filter="$2x$3")
+	closest_hz=$(echo "$closest_rez" | awk -v c=3 -v t="$4" 'NR==1{d=$c-t;d=d<0?-d:d;v=$c;next}{m=$c-t;m=m<0?-m:m}m<d{d=m;v=$c}END{print v}')
+	echo "out $closest_hz"
+	result=$(wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)' | fzf --filter="""$2x$3 $closest_hz""" | tr -d ' ')
+	# TODO: Worth using an array to split instead?
+	closest_rez=$(echo "$result" | cut -d ',' -f 1)
+	closest_hz=$(echo "$result" | cut -d ',' -f 2| sed 's/Hz//')
+	echo "Closest match is: $closest_rez @ $closest_hz"
+	_height=$(echo "$closest_rez" | cut -d 'x' -f 2)
+	_width=$(echo "$closest_rez" | cut -d 'x' -f 1)
+	_refresh="$closest_hz"
+	# set +x
+}
+
+# DEBUG
+# get_closest_mode DP-1 2560 1440 60
 if [[ -n $_primary ]]; then
 	if [[ $1 == "do" ]]; then
 		# TODO: X11 support using xrandr
 		if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
 			# sh -c \"if pgrep plasmashell; then output=`~/scripts/get_primary_monitor`; kscreen-doctor output.${output}.vrrpolicy.never; kscreen-doctor.output.${output}.mode.2560x1440@120; fi\""}]
 			# TODO: revisit once KDE has fully native support without Xwayland
+			# TODO: Get the available mode that's the closest to the wanted one
 			kscreen-doctor output."${_primary}".mode."${_width}"x"${_height}"@"${_refresh}"
 			kscreen-doctor output."${_primary}".vrrpolicy.never
-		elif [[ "$DESKTOP_SESSION" == "hyprland" ]]; then
+		elif [[ "$XDG_CURRENT_DESKTOP" == "Hyprland" ]]; then
 			echo "Detected Hyprland"
+			# FIXME: Why are we $_dummy_plug and $_primary should be the same
 			hyprctl keyword monitor $_dummy_plug,enable
-			hyprctl keyword monitor $_primary,${_width}x${_height}@${_refresh},0x0,1,vrr,0
+			get_closest_mode "${_primary} ${_width} ${_height} ${_refresh}"
+			hyprctl keyword monitor "${_primary}","${_width}"x"${_height}"@"${_refresh}",0x0,1,vrr,0
 		elif [[ "$_session_type" == "wayland" ]]; then
+			get_closest_mode "${_primary} ${_width} ${_height} ${_refresh}"
 			wlr-randr --output "${_primary}" --mode "${_width}"x"${_height}"@"${_refresh}" --adaptive-sync disabled
 		else
 			xrandr --output "${_primary}" --mode "${_width}"x"${_height}" -r "${_refresh}"
 		fi
 	elif [[ $1 == "undo" ]]; then
+		#TODO: Use variation of get_closest_mode to restore desired resolution
 		# TODO: make disabling "$_dummy_plug" optional
 		if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
 			# TODO: Find preferred mode. it is available through command completion
 			kscreen-doctor output."${_primary}".mode.${_default_resolution}@${_default_refresh_rate}
 			kscreen-doctor output."${_primary}".vrrpolicy.${_default_vrr_mode}
 			kscreen-doctor output.${_dummy_plug}.disable
-		elif [[ "$DESKTOP_SESSION" == "hyprland" ]]; then
+		elif [[ "$XDG_CURRENT_DESKTOP" == "Hyprland" ]]; then
 			echo "Detected Hyprland"
-			hyprctl keyword monitor $_primary,preferred,auto,1,vrr,1
-			hyprctl keyword monitor $_dummy_plug,disable
+			hyprctl keyword monitor "${_primary}",preferred,auto,1,vrr,1
+			hyprctl keyword monitor "${_dummy_plug}",disable
 		elif [[ "$_session_type" == "wayland" ]]; then
 			wlr-randr --output "${_primary}" --mode ${_default_resolution}@${_default_refresh_rate} --adaptive-sync ${_default_vrr_mode}
 			if [[ $_primary != "$_dummy_plug" ]]; then
@@ -120,6 +171,7 @@ unset _preferred_monitor _session_type _primary _height _width_refresh
 # TODO: COSMIC
 # TODO: GNOME
 # TODO: Hyprland
+# FIXME: Make sure dummy plug is enabled on connect. Seems to fail in Hyprland
 # TODO: awesomewm, dwm, etc
 # TODO: NVIDIA and Intel gpus support
 
