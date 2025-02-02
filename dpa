@@ -17,23 +17,32 @@ _preferred_monitor_index=1
 ########### End of user configuration #####################
 ###########################################################
 ## No configurable values below
-function enable_fallback_hdmi() {
-	export WAYLAND_DISPLAY=wayland-1
-	if [[ $(wlr-randr | grep "${PREFERRED_DISPLAY:-DP-1}" -c) -lt 1 ]]; then
-		echo "Preferred monitor is not enabled"
-		if [[ $(wlr-randr | grep -A5 "HDMI-A-1" | grep 'Enabled: no' -c) -gt 0 ]]; then
-			echo "Re-enabling only monitor HDMI-A-1"
-			wlr-randr --output HDMI-A-1 --on
-		fi
-	else
-		wlr-randr --output HDMI-A-1 --off
-	fi
-}
-# enable_fallback_hdmi
+
 # TODO: Organize refactor to do as little work as possible;
 # i.e. No need to check for session type if using Hyprland since it's wayland
 wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)'
-_session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep "active" -w))" -p Type | awk -F= '{print $2}')
+
+get_session_type() {
+	# Get systemd session type
+	# FIXME: hyprland doesn't show as "active", but as a seat on tty3
+	# user_sessions=$(loginctl list_sessions | grep "$USER")
+	_session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep "active" -w))" -p Type | awk -F= '{print $2}')
+
+	if [[ -n $_session_type ]]; then
+		echo "$_session_type"
+	else
+		environment=$(env)
+		if grep -qc "WAYLAND_DISPLAY" <<<"$environment"; then
+			echo "wayland"
+		elif grep -qc "DISPLAY" <<<"$environment"; then
+			echo "x11"
+		fi
+	fi
+	echo "none"
+}
+
+_session_type=$(get_session_type)
+logger -t dpa "Session type: $_session_type"
 if [[ "$_session_type" != "x11" ]] && [[ "$_session_type" != "wayland" ]]; then
 	echo "Falling back to environment for session type detection"
 	environment=$(printenv)
@@ -85,10 +94,16 @@ else
 		# if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_preferred_monitor" -c) -gt 0 ]]; then
 		# Check if there is another display enabled beside the dummy plug
 		if [[ $(wlr-randr | grep "$_dummy_plug" -A5 | grep 'Enabled: yes' -c) -gt 0 ]]; then
+			logger -t dpa "Dummy enabled: 1"
 			is_dummy_enabled=true
+		else
+			logger -t dpa "Dummy enabled: 0"
 		fi
 		if [[ $(wlr-randr | grep -B5 'Enabled: yes' --no-group-separator | grep -v '^\s' | grep -v "$_dummy_plug" -c) -gt 0 ]]; then
+			logger -t dpa "Other enabled: 1"
 			is_there_other_active_displays=true
+		else
+			logger -t dpa "Other enabled: 0"
 		fi
 		if [[ ! $is_there_other_active_displays ]]; then
 			logger -t dpa "Using the dummy plug"
@@ -101,16 +116,21 @@ else
 		# TODO: properly handle 'disconnected primary'. Not sure HOW this happens, but I'm staring at it right now.
 		_main_computer_display=$(xrandr | grep connected -w | awk '{print $1}' | head -n1)
 	fi
-	# echo "unsupported yet"
-	# notify-send "Unsupported environment" "Resolution not adjusted"
-	# return 0
+	if wlr-randr | grep -A5 "$_main_computer_display" | grep -q 'Enabled: no'; then
+		logger -t dpa "WARNING: Primary Monitor was not enabled!!!!!!! Force-enabling dummy plug as a cop-out"
+		if [[ "$XDG_CURRENT_DESKTOP" == "Hyprland" ]]; then
+			hyprctl keyword monitor "${_dummy_plug}",enabled
+		else
+			wlr-randr --output "$_dummy_plug" --on
+		fi
+	fi
 fi
-# FIXME: Primary == Dummy in Hyprland
 logger -t dpa "Assert: PRIMARY:DUMMY == ${_main_computer_display}:${_dummy_plug}"
 echo "Primary output: ${_main_computer_display}"
 _height=${SUNSHINE_CLIENT_HEIGHT:-720}
 _width=${SUNSHINE_CLIENT_WIDTH:-1280}
 _refresh=${SUNSHINE_CLIENT_FPS:-60}
+# FIXME: Mode change does not work in Hyprland with my main monitor
 set +x
 get_available_modes() {
 	wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)'
@@ -158,46 +178,49 @@ if [[ -n ${_main_computer_display} ]]; then
 			kscreen-doctor output."${_main_computer_display}".vrrpolicy.never
 		elif [[ "$XDG_CURRENT_DESKTOP" == "Hyprland" ]]; then
 			echo "Detected Hyprland"
-			get_closest_mode "${_main_computer_display}" "${_width}" "${_height}" "${_refresh}"
-			# FIXME: Doesn't seem to work yet with my primary monitor
-			if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
-				hyprctl keyword monitor "${_dummy_plug}",disable
-			fi
-			hyprctl keyword monitor "${_main_computer_display}","${_width}"x"${_height}"@"${_refresh}",0x0,1,vrr,0
+			# FIXME: Doesn't seem to work for hyprland
+			# get_closest_mode "${_main_computer_display}" "${_width}" "${_height}" "${_refresh}"
+			hyprctl keyword monitor "${_main_computer_display}","${_width}"x"${_height}"@"${_refresh}"
+			# if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
+			# 	hyprctl keyword monitor "${_dummy_plug}",disable
+			# fi
 		elif [[ "$_session_type" == "wayland" ]]; then
 			get_closest_mode "${_main_computer_display} ${_width} ${_height} ${_refresh}"
 			wlr-randr --output "${_main_computer_display}" --mode "${_width}"x"${_height}"@"${_refresh}" --adaptive-sync disabled
 		else
 			xrandr --output "${_main_computer_display}" --mode "${_width}"x"${_height}" -r "${_refresh}"
+	fi
+elif [[ $1 == "undo" ]]; then
+	#TODO: Use variation of get_closest_mode to restore desired resolution
+	# TODO: make disabling "$_dummy_plug" optional
+	if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
+		# TODO: Find preferred mode. it is available through command completion
+		kscreen-doctor output."${_main_computer_display}".mode.${_default_resolution}@${_default_refresh_rate}
+		kscreen-doctor output."${_main_computer_display}".vrrpolicy.${_default_vrr_mode}
+		if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
+			kscreen-doctor output.${_dummy_plug}.disable
 		fi
-	elif [[ $1 == "undo" ]]; then
-		#TODO: Use variation of get_closest_mode to restore desired resolution
-		# TODO: make disabling "$_dummy_plug" optional
-		if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
-			# TODO: Find preferred mode. it is available through command completion
-			kscreen-doctor output."${_main_computer_display}".mode.${_default_resolution}@${_default_refresh_rate}
-			kscreen-doctor output."${_main_computer_display}".vrrpolicy.${_default_vrr_mode}
-			if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
-				kscreen-doctor output.${_dummy_plug}.disable
-			fi
-		elif [[ "$XDG_CURRENT_DESKTOP" == "Hyprland" ]]; then
-			echo "Detected Hyprland"
-			hyprctl keyword monitor "${_main_computer_display}",preferred,auto,1,vrr,1
-			# TODO: Only disable dummy plug if not the last display
-			if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
-				hyprctl keyword monitor "${_dummy_plug}",disable
-			fi
-		elif [[ "$_session_type" == "wayland" ]]; then
-			wlr-randr --output "${_main_computer_display}" --mode ${_default_resolution}@${_default_refresh_rate} --adaptive-sync ${_default_vrr_mode}
-			if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
-				wlr-randr --output "$_dummy_plug" --off
-			fi
-		else
-			xrandr --output "${_main_computer_display}" --mode ${_default_resolution} -r ${_default_refresh_rate}
-			if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
-				wlr-randr --output "$_dummy_plug" --off
-			fi
+	elif [[ "$XDG_CURRENT_DESKTOP" == "Hyprland" ]]; then
+		echo "Detected Hyprland"
+		if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
+			# TODO: Save and restore the entry marked as "current"
+			hyprctl keyword monitor "${_main_computer_display}",preferred
 		fi
+		# TODO: Only disable dummy plug if not the last display
+		# if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
+		# 	hyprctl keyword monitor "${_dummy_plug}",disable
+		# fi
+	elif [[ "$_session_type" == "wayland" ]]; then
+		wlr-randr --output "${_main_computer_display}" --mode ${_default_resolution}@${_default_refresh_rate} --adaptive-sync ${_default_vrr_mode}
+		if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
+			wlr-randr --output "$_dummy_plug" --off
+		fi
+	else
+		xrandr --output "${_main_computer_display}" --mode ${_default_resolution} -r ${_default_refresh_rate}
+		if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
+			wlr-randr --output "$_dummy_plug" --off
+		fi
+fi
 	fi
 fi
 unset _preferred_monitor _session_type _primary _height _width_refresh
