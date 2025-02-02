@@ -9,6 +9,10 @@ _default_refresh_rate=120
 _default_vrr_mode=automatic
 # FIXME: Non-predictable connector name.
 _dummy_plug=HDMI-A-1
+# FIXME: This breaks resolution changing under hyprland
+# if [[ -z "$PREFERRED_DISPLAY" ]]; then
+# 	PREFERRED_DISPLAY="DP-1"
+# fi
 _preferred_monitor_index=1
 ########### End of user configuration #####################
 ###########################################################
@@ -25,7 +29,7 @@ function enable_fallback_hdmi() {
 		wlr-randr --output HDMI-A-1 --off
 	fi
 }
-enable_fallback_hdmi
+# enable_fallback_hdmi
 # TODO: Organize refactor to do as little work as possible;
 # i.e. No need to check for session type if using Hyprland since it's wayland
 wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)'
@@ -51,50 +55,63 @@ if [[ "$_session_type" == "x11" ]]; then
 fi
 # TODO: Use desktop-specific methods here when possible
 _preferred_monitor=${PREFERRED_DISPLAY:-${_connector_name_format}-${_preferred_monitor_index}}
-_primary=""
+_main_computer_display=""
+is_dummy_enabled=false
+is_there_other_active_displays=false
 
-
-wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)'
+# TODO: Properly label every step, I'm getting lost
+##############################################################################
+### DETERMINE THE MAIN COMPUTER DISPLAY
+### This value should be different than the dummy plug, UNLESS only the dummy
+###    plug is enabled (i.e. monitors off)
 if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
 	echo "KDE Mode"
 	outputs=$(kscreen-doctor -o | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g")
 	# transform output into lines, remove disabled outputs, and sort by priority, then return the output to prefer by priority
 	p=$(echo "$outputs" | grep -v "Modes" | grep Output -A4 | xargs | sed 's/Output\:/\n/g' | grep -v disabled | awk '{print $6 " " $2}' | sed '/^\s*$/d' | sort | head -n1 | cut -d ' ' -f 2)
 	echo "p: $p"
-	_primary=$(echo "$outputs" | /bin/grep -B3 -A0 "$p" | grep Output: -B0 -A0 | cut -d ' ' -f 3)
+	_main_computer_display=$(echo "$outputs" | /bin/grep -B3 -A0 "$p" | grep Output: -B0 -A0 | cut -d ' ' -f 3)
 	unset p outputs
 	# TODO: Make this more readable
 else
+	# is our preferred display enabled?
+	set -x
 	echo "non-KDE Mode"
 	echo "DEBUG: Stage 1"
-	# is our preferred display enabled?
 	if [[ "$_session_type" == "wayland" ]]; then
-		echo "DEBUG: Stage 1: Wayland"
+		logger -t dpa "DEBUG: Stage 1: Wayland"
 		# NOTE: wlr-randr has no concept of primary monitor
 		# TODO: Make sure we don't disable the only present display
-		if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_preferred_monitor" -c) -gt 0 ]]; then
-			wlr-randr --output "$_dummy_plug" --off
-			_primary=$_preferred_monitor
+		# if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_preferred_monitor" -c) -gt 0 ]]; then
+		# Check if there is another display enabled beside the dummy plug
+		if [[ $(wlr-randr | grep "$_dummy_plug" -A5 | grep 'Enabled: yes' -c) -gt 0 ]]; then
+			is_dummy_enabled=true
+		fi
+		if [[ $(wlr-randr | grep -B5 'Enabled: yes' --no-group-separator | grep -v '^\s' | grep -v "$_dummy_plug" -c) -gt 0 ]]; then
+			is_there_other_active_displays=true
+		fi
+		if [[ ! $is_there_other_active_displays ]]; then
+			logger -t dpa "Using the dummy plug"
+			_main_computer_display=$_dummy_plug
 		else
-			if wlr-randr | grep "$_dummy_plug" -A5 | grep 'Enabled: no'; then
-				echo "DEBUG: Enabling $_preferred_monitor"
-				wlr-randr --output "$_dummy_plug" --on
-			fi
-			_primary=$_dummy_plug
+			logger -t dpa "Dummy plug is not needed right now"
+			_main_computer_display=$(wlr-randr | grep -B5 'Enabled: yes' --no-group-separator | grep -v '^\s' | grep -v "$_dummy_plug" | cut -d ' ' -f 1)
 		fi
 	else
 		# TODO: properly handle 'disconnected primary'. Not sure HOW this happens, but I'm staring at it right now.
-		_primary=$(xrandr | grep connected -w | awk '{print $1}' | head -n1)
+		_main_computer_display=$(xrandr | grep connected -w | awk '{print $1}' | head -n1)
 	fi
 	# echo "unsupported yet"
 	# notify-send "Unsupported environment" "Resolution not adjusted"
 	# return 0
 fi
-echo "Primary output: $_primary"
+# FIXME: Primary == Dummy in Hyprland
+logger -t dpa "Assert: PRIMARY:DUMMY == ${_main_computer_display}:${_dummy_plug}"
+echo "Primary output: ${_main_computer_display}"
 _height=${SUNSHINE_CLIENT_HEIGHT:-720}
 _width=${SUNSHINE_CLIENT_WIDTH:-1280}
 _refresh=${SUNSHINE_CLIENT_FPS:-60}
-
+set +x
 get_available_modes() {
 	wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)'
 }
@@ -103,11 +120,19 @@ function get_closest_mode() {
 	# TODO:use JQ to parse wlr-randr output and get the closest mode that matches
 	# wlr-randr --json | jq -j 'map(select(.name == "DP-1"))'
 	# set -x
-	out=$(wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)')
-	closest_rez=$(echo "$out" | fzf --filter="$2x$3")
-	closest_hz=$(echo "$closest_rez" | awk -v c=3 -v t="$4" 'NR==1{d=$c-t;d=d<0?-d:d;v=$c;next}{m=$c-t;m=m<0?-m:m}m<d{d=m;v=$c}END{print v}')
-	echo "out $closest_hz"
-	result=$(wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)' | fzf --filter="""$2x$3 $closest_hz""" | tr -d ' ')
+	logger -t dpa "Request to find closest mode to $*"
+	c=$1
+	w=$2
+	h=$3
+	r=$4
+	echo "$c $w $h $r"
+	# logger -t dpa "running wlr-randr | grep -zoP '(?=$c)(?s).*?(?=Adaptive)'"
+	result="$(wlr-randr | grep -zoP '(?=HDMI-A-1)(?s).*?(?=Adaptive)')"
+	# logger -t dpa "result=$result"
+	closest_rez=$(echo "$result" | fzf --filter="${w}x${h}")
+	# logger -t dpa "closest_rez=$closest_rez"
+	closest_hz=$(echo "$closest_rez" | awk -v c=3 -v t="$r" 'NR==1{d=$c-t;d=d<0?-d:d;v=$c;next}{m=$c-t;m=m<0?-m:m}m<d{d=m;v=$c}END{print v}')
+	result=$(wlr-randr | grep -zoP '(?='"$c"')(?s).*?(?=Adaptive)' | fzf --filter="""${w}x${h} $closest_hz""" | tr -d ' ')
 	# TODO: Worth using an array to split instead?
 	closest_rez=$(echo "$result" | cut -d ',' -f 1)
 	closest_hz=$(echo "$result" | cut -d ',' -f 2| sed 's/Hz//')
@@ -116,51 +141,60 @@ function get_closest_mode() {
 	_width=$(echo "$closest_rez" | cut -d 'x' -f 1)
 	_refresh="$closest_hz"
 	# set +x
+	logger -t dpa "Closest mode for ${_main_computer_display}: ${_width}x${_height}@${_refresh}Hz"
 }
 
 # DEBUG
 # get_closest_mode DP-1 2560 1440 60
-if [[ -n $_primary ]]; then
+# TODO: Sanity-check the logic after fixing the confusing variable names
+if [[ -n ${_main_computer_display} ]]; then
 	if [[ $1 == "do" ]]; then
 		# TODO: X11 support using xrandr
 		if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
 			# sh -c \"if pgrep plasmashell; then output=`~/scripts/get_primary_monitor`; kscreen-doctor output.${output}.vrrpolicy.never; kscreen-doctor.output.${output}.mode.2560x1440@120; fi\""}]
 			# TODO: revisit once KDE has fully native support without Xwayland
 			# TODO: Get the available mode that's the closest to the wanted one
-			kscreen-doctor output."${_primary}".mode."${_width}"x"${_height}"@"${_refresh}"
-			kscreen-doctor output."${_primary}".vrrpolicy.never
+			kscreen-doctor output."${_main_computer_display}".mode."${_width}"x"${_height}"@"${_refresh}"
+			kscreen-doctor output."${_main_computer_display}".vrrpolicy.never
 		elif [[ "$XDG_CURRENT_DESKTOP" == "Hyprland" ]]; then
 			echo "Detected Hyprland"
-			# FIXME: Why are we $_dummy_plug and $_primary should be the same
-			hyprctl keyword monitor $_dummy_plug,enable
-			get_closest_mode "${_primary} ${_width} ${_height} ${_refresh}"
-			hyprctl keyword monitor "${_primary}","${_width}"x"${_height}"@"${_refresh}",0x0,1,vrr,0
+			get_closest_mode "${_main_computer_display}" "${_width}" "${_height}" "${_refresh}"
+			# FIXME: Doesn't seem to work yet with my primary monitor
+			if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
+				hyprctl keyword monitor "${_dummy_plug}",disable
+			fi
+			hyprctl keyword monitor "${_main_computer_display}","${_width}"x"${_height}"@"${_refresh}",0x0,1,vrr,0
 		elif [[ "$_session_type" == "wayland" ]]; then
-			get_closest_mode "${_primary} ${_width} ${_height} ${_refresh}"
-			wlr-randr --output "${_primary}" --mode "${_width}"x"${_height}"@"${_refresh}" --adaptive-sync disabled
+			get_closest_mode "${_main_computer_display} ${_width} ${_height} ${_refresh}"
+			wlr-randr --output "${_main_computer_display}" --mode "${_width}"x"${_height}"@"${_refresh}" --adaptive-sync disabled
 		else
-			xrandr --output "${_primary}" --mode "${_width}"x"${_height}" -r "${_refresh}"
+			xrandr --output "${_main_computer_display}" --mode "${_width}"x"${_height}" -r "${_refresh}"
 		fi
 	elif [[ $1 == "undo" ]]; then
 		#TODO: Use variation of get_closest_mode to restore desired resolution
 		# TODO: make disabling "$_dummy_plug" optional
 		if [[ $XDG_CURRENT_DESKTOP == "KDE" ]]; then
 			# TODO: Find preferred mode. it is available through command completion
-			kscreen-doctor output."${_primary}".mode.${_default_resolution}@${_default_refresh_rate}
-			kscreen-doctor output."${_primary}".vrrpolicy.${_default_vrr_mode}
-			kscreen-doctor output.${_dummy_plug}.disable
+			kscreen-doctor output."${_main_computer_display}".mode.${_default_resolution}@${_default_refresh_rate}
+			kscreen-doctor output."${_main_computer_display}".vrrpolicy.${_default_vrr_mode}
+			if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
+				kscreen-doctor output.${_dummy_plug}.disable
+			fi
 		elif [[ "$XDG_CURRENT_DESKTOP" == "Hyprland" ]]; then
 			echo "Detected Hyprland"
-			hyprctl keyword monitor "${_primary}",preferred,auto,1,vrr,1
-			hyprctl keyword monitor "${_dummy_plug}",disable
+			hyprctl keyword monitor "${_main_computer_display}",preferred,auto,1,vrr,1
+			# TODO: Only disable dummy plug if not the last display
+			if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
+				hyprctl keyword monitor "${_dummy_plug}",disable
+			fi
 		elif [[ "$_session_type" == "wayland" ]]; then
-			wlr-randr --output "${_primary}" --mode ${_default_resolution}@${_default_refresh_rate} --adaptive-sync ${_default_vrr_mode}
-			if [[ $_primary != "$_dummy_plug" ]]; then
+			wlr-randr --output "${_main_computer_display}" --mode ${_default_resolution}@${_default_refresh_rate} --adaptive-sync ${_default_vrr_mode}
+			if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
 				wlr-randr --output "$_dummy_plug" --off
 			fi
 		else
-			xrandr --output "${_primary}" --mode ${_default_resolution} -r ${_default_refresh_rate}
-			if [[ $_primary != "$_dummy_plug" ]]; then
+			xrandr --output "${_main_computer_display}" --mode ${_default_resolution} -r ${_default_refresh_rate}
+			if [[ ${_main_computer_display} != "$_dummy_plug" ]]; then
 				wlr-randr --output "$_dummy_plug" --off
 			fi
 		fi
