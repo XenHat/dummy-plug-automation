@@ -25,26 +25,29 @@ _preferred_monitor_index=1
 # i.e. No need to check for session type if using Hyprland since it's wayland
 wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)'
 
-get_session_type() {
-	# Get systemd session type
-	# FIXME: hyprland doesn't show as "active", but as a seat on tty3
-	# user_sessions=$(loginctl list_sessions | grep "$USER")
-	_session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep "active" -w))" -p Type | awk -F= '{print $2}')
+if [[ -n ${XDG_SESSION_TYPE} ]]; then
+	_session_type="${XDG_SESSION_TYPE}"
+else
+	get_session_type() {
+		# Get systemd session type
+		# FIXME: hyprland and plasma-wayland don't show as "active", but as a seat on tty3
+		# shellcheck disable=SC2312
+		_session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "${USER}" | grep -v manager))" -p Type | awk -F= '{print $2}')
 
-	if [[ -n ${_session_type} ]]; then
-		echo "${_session_type}"
-	else
-		environment=$(env)
-		if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
-			echo "wayland"
-		elif grep -qc "DISPLAY" <<<"${environment}"; then
-			echo "x11"
+		if [[ -n ${_session_type} ]]; then
+			echo "${_session_type}"
+		else
+			environment=$(env)
+			if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
+				echo "wayland"
+			elif grep -qc "DISPLAY" <<<"${environment}"; then
+				echo "x11"
+			fi
 		fi
-	fi
-	echo "none"
-}
-
-_session_type=$(get_session_type)
+		echo "none"
+	}
+	_session_type=$(get_session_type)
+fi
 logger -t dpa "Session type: ${_session_type}"
 if [[ $_session_type != "x11" ]] && [[ $_session_type != "wayland" ]]; then
 	echo "Falling back to environment for session type detection"
