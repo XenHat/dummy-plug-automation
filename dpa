@@ -7,7 +7,7 @@
 # Resolution to restore to until default mode and/or mode restore is implemented
 _default_resolution=2560x1440
 _default_refresh_rate=120
-_default_vrr_mode=automatic
+_default_vrr_mode=always
 # FIXME: Non-predictable connector name.
 _dummy_plug=HDMI-A-1
 # FIXME: This breaks resolution changing under hyprland
