@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 while sleep 1; do
 	if pgrep -x Hyprland >/dev/null 2>&1; then
+		# shellcheck disable=SC2312
 		if ! hyprctl monitors 2>&1 | grep -P '^(Monitor\s.*|\s+disabled.*)$' | grep 'disabled: false' -q; then
 			# Forcefully enabling dummy plug
 			echo "Enabling fallback monitor!"
@@ -15,6 +16,7 @@ while sleep 1; do
 		# Get systemd session type
 		# FIXME: hyprland doesn't show as "active", but as a seat on tty3
 		# user_sessions=$(loginctl list_sessions | grep "$USER")
+		# shellcheck disable=SC2312
 		_session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "${USER}" | grep "active" -w))" -p Type | awk -F= '{print $2}')
 
 		if [[ -n ${_session_type} ]]; then
@@ -30,6 +32,7 @@ while sleep 1; do
 		echo "none"
 	}
 	# if [[ "$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep "active" -w))" -p Type | awk -F= '{print $2}')" == "wayland" ]]; then
+	# shellcheck disable=SC2312
 	if [[ "$(get_session_type)" == "wayland" ]]; then
 		export WAYLAND_DISPLAY=wayland-1
 		if [[ "$(wlr-randr | grep 'Enabled: yes' -c --no-group-separator)" -lt 1 ]]; then
