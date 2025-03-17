@@ -4,7 +4,7 @@ Requires=monitor-fallback.service
 
 [Service]
 Type=simple
-ExecStart=%h/code/xenhat/dummy-plug-automation/monitor_fallback.bash
+ExecStart=%h/code/xenhat/dummy-plug-automation/monitor-fallback.bash
 
 
 [Install]
