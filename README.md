@@ -16,8 +16,8 @@ Automation for remote streaming using a dummy plug on Linux, supporting both Xor
 
 usage: `dpa [do|undo]`
 
-Example usage:
+Example usage using a global prep command in Sunshine:
 
-```sunshine.conf
+```conf
 global_prep_cmd = [{"do":"sh -c \"~/code/xenhat/dummy-plug-automation/dpa do\"","undo":"sh -c \"~/code/xenhat/dummy-plug-automation/dpa undo\""}]
 ```
