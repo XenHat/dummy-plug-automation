@@ -115,7 +115,7 @@ if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
 	outputs=$(kscreen-doctor -o | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g")
 	# transform output into lines, remove disabled outputs, and sort by priority, then return the output to prefer by priority
 	# shellcheck disable=SC2312
-	p=$(echo "${outputs}" | grep -v "Modes" | grep Output -A4 | xargs | sed 's/Output\:/\n/g' | grep -v disabled | awk '{print $6 " " $2}' | sed '/^\s*$/d' | sort | head -n1 | cut -d ' ' -f 2)
+	p=$(echo "${outputs}" | grep -v "Modes" | grep Output -A4 | xargs | sed 's/Output\:/\n/g' | grep -v disabled | awk '{print $6 " " $7 " " $2}' | sed '/^\s*$/d' | sort | head -n1 | cut -d ' ' -f 3)
 	log "primary display: ${p}"
 	# shellcheck disable=SC2312
 	_output_to_stream_out=$(echo "${outputs}" | /bin/grep -B3 -A0 "${p}" | grep Output: -B0 -A0 | cut -d ' ' -f 3)
