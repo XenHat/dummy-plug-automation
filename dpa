@@ -144,7 +144,8 @@ else
 		# if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_preferred_monitor" -c) -gt 0 ]]; then
 		# Check if there is another display enabled beside the dummy plug
 		# shellcheck disable=SC2312
-		if [[ $(wlr-randr | grep "${_stream_display}" -A5 | grep 'Enabled: yes' -c) -gt 0 ]]; then
+		wlr_randr=$(wlr-randr)
+		if [[ $(echo "${wlr_randr}" | grep --no-group-separator "${_dummy_plug}" -A5 | grep 'Enabled: yes' -c) -gt 0 ]]; then
 			log "Dummy enabled: 1"
 			# is_dummy_enabled=true
 		else
@@ -152,7 +153,8 @@ else
 		fi
 
 		# trunk-ignore(shellcheck/SC2312)
-		if [[ $(wlr-randr | grep -B5 'Enabled: yes' --no-group-separator | grep -v '^\s' | grep -v "${_stream_display}" -c) -gt 0 ]]; then
+		stream_d=$(echo "${wlr_randr}" | grep -B5 'Enabled: yes' --no-group-separator | grep -v '^\s' | grep -v "${_dummy_plug}")
+		if [[ $(echo "${stream_d}" | wc -l) -gt 0 ]]; then
 			log "Other enabled: 1"
 			is_there_other_active_displays=true
 		else
@@ -165,7 +167,7 @@ else
 			log "Dummy plug is not needed right now"
 			log "TODO: Make sure this is actually correct"
 			# shellcheck disable=SC2312
-			_output_to_stream_out=$(wlr-randr | grep -B5 'Enabled: yes' --no-group-separator | grep -v '^\s' | grep -v "${_stream_display}" | cut -d ' ' -f 1)
+			_main_computer_display=$(echo "${stream_d}" | cut -d ' ' -f 1)
 		fi
 	else
 		# TODO: properly handle 'disconnected primary'. Not sure HOW this happens, but I'm staring at it right now.
