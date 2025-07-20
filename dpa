@@ -250,7 +250,7 @@ if [[ -n ${_output_to_stream_out} ]]; then
 			# sh -c \"if pgrep plasmashell; then output=`~/scripts/get_primary_monitor`; kscreen-doctor output.${output}.vrrpolicy.never; kscreen-doctor.output.${output}.mode.2560x1440@120; fi\""}]
 			# TODO: revisit once KDE has fully native support without Xwayland
 			# TODO: Get the available mode that's the closest to the wanted one
-			log "Attempting to run 'kscreen-doctor output."${_output_to_stream_out}".mode."${_client_width}"x"${_client_height}"@"${_stream_refresh_rate}"'"
+			log "Attempting to run 'kscreen-doctor output.${_output_to_stream_out}.mode.${_client_width}x${_client_height}@${_stream_refresh_rate}'"
 			kscreen-doctor output."${_output_to_stream_out}".mode."${_client_width}"x"${_client_height}"@"${_stream_refresh_rate}"
 			kscreen-doctor output."${_output_to_stream_out}".vrrpolicy.always
 		elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
