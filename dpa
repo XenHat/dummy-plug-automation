@@ -10,7 +10,8 @@ _seat_resolution=${DEFAULT_RESOLUTION:-2560x1440}
 _seat_refresh_rate=${DEFAULT_REFRESH_RATE:-60}
 _default_vrr_mode=automatic
 # FIXME: Non-predictable connector name.
-_stream_display=HDMI-A-1
+_seat_display="DP-1"
+_stream_display="HDMI-A-1"
 _client_height=${SUNSHINE_CLIENT_HEIGHT:-720}
 _client_width=${SUNSHINE_CLIENT_WIDTH:-1280}
 _stream_refresh_rate=${SUNSHINE_CLIENT_FPS:-60}
@@ -27,7 +28,7 @@ command -v agrep >/dev/null || exit 2
 
 _logger=''
 log() {
-	if [[ -z "$_logger" ]]; then
+	if [[ -z $_logger ]]; then
 		if command -v logger >/dev/null 2>&1; then
 			_logger='logger -t dpa'
 		else
@@ -60,42 +61,51 @@ else
 
 		if [[ -n ${_session_type} ]]; then
 			echo "${_session_type}"
+			return
 		else
 			environment=$(env)
 			if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
 				echo "wayland"
+				return
 			elif grep -qc "DISPLAY" <<<"${environment}"; then
 				echo "x11"
+				return
 			fi
 		fi
 		echo "none"
 	}
 	_session_type=$(get_session_type)
+	if [[ ${_session_type} != "x11" ]] && [[ ${_session_type} != "wayland" ]]; then
+		log "Falling back to environment for session type detection"
+		environment=$(printenv)
+		if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
+			_session_type="wayland"
+		elif grep -qc "DISPLAY" <<<"${environment}"; then
+			_session_type="x11"
+		else
+			log "Unknown session type: '${_session_type}'. Please fix me!"
+			exit 4
+		fi
+		unset environment
+	fi
 fi
-if [[ "$_session_type" == "tty" ]]; then
+# Workaround for missing environment variables when sunshine is running from a systemd unit
+if [[ ${_session_type} == "wayland" ]] && [[ -z $WAYLAND_DISPLAY ]]; then
+	export WAYLAND_DISPLAY='wayland-1'
+elif [[ ${_session_type} == "x11" ]]; then
+	export DISPLAY=':0'
+elif [[ ${_session_type} == "tty" ]]; then
 	log "running in TTY; not performing automation"
 	exit 0
 fi
 log "Session type: ${_session_type}"
-if [[ ${_session_type} != "x11" ]] && [[ ${_session_type} != "wayland" ]]; then
-	log "Falling back to environment for session type detection"
-	environment=$(printenv)
-	if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
-		_session_type="wayland"
-	elif grep -qc "DISPLAY" <<<"${environment}"; then
-		_session_type="x11"
-	else
-		log "Unknown session type: '${_session_type}'. Please fix me!"
-		exit 0
-	fi
-	unset environment
-fi
+
 _connector_name_format="DP-"
-# One day, we'll have a bloody standard for connector names...
-if [[ ${_session_type} == "x11" ]]; then
-	_connector_name_format="DisplayPort-"
-	_dummy_plug=HDMI-A-0
-fi
+# # One day, we'll have a bloody standard for connector names...
+# if [[ ${_session_type} == "x11" ]]; then
+# 	_connector_name_format="DisplayPort-"
+# 	_stream_display=HDMI-A-0
+# fi
 # TODO: Use desktop-specific methods here when possible
 # _preferred_monitor=${PREFERRED_DISPLAY:-${_connector_name_format}-${_preferred_monitor_index}}
 # TODO: Remove this variable and fix the logic for seat and stream displays
@@ -133,15 +143,19 @@ else
 		log "Automatic resolution change is not available: wlr-randr not found"
 		return
 	fi
-	log "DEBUG: Stage 1"
 	if [[ ${_session_type} == "wayland" ]]; then
-		log "DEBUG: Stage 1: Wayland"
 		# NOTE: wlr-randr has no concept of primary monitor
 		# TODO: Make sure we don't disable the only present display
-		# if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_preferred_monitor" -c) -gt 0 ]]; then
+		# if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_seat_display" -c) -gt 0 ]]; then
 		# Check if there is another display enabled beside the dummy plug
+		# TODO:
 		# shellcheck disable=SC2312
-		if [[ $(wlr-randr | grep "${_stream_display}" -A5 | grep 'Enabled: yes' -c) -gt 0 ]]; then
+		# FIXME: This works in the terminal but not in the script???
+		wlr_randr="$(wlr-randr)"
+		log "wlr-randr: \n${wlr_randr}"
+		enabled_connectors=$(echo "${wlr_randr}" | grep --no-group-separator 'Enabled: yes' -B5 | grep -E '(DP|HDMI)-' | cut -d ' ' -f 1)
+		log "Enabled Connectors: ${enabled_connectors}"
+		if [[ $(echo "${wlr_randr}" | grep --no-group-separator "${_stream_display}" -A5 | grep 'Enabled: yes' -c) -gt 0 ]]; then
 			log "Dummy enabled: 1"
 			# is_dummy_enabled=true
 		else
@@ -149,7 +163,10 @@ else
 		fi
 
 		# trunk-ignore(shellcheck/SC2312)
-		if [[ $(wlr-randr | grep -B5 'Enabled: yes' --no-group-separator | grep -v '^\s' | grep -v "${_stream_display}" -c) -gt 0 ]]; then
+		# FIXME: This is stupid and should not be checked that way
+		stream_d=$(echo "${wlr_randr}" | grep -B5 'Enabled: yes' --no-group-separator | grep -v '^\s' | grep "${_stream_display}" | cut -d ' ' -f 1)
+		log "Stream Connector: ${stream_d}"
+		if [[ $(echo "${stream_d}" | wc -l) -gt 0 ]]; then
 			log "Other enabled: 1"
 			is_there_other_active_displays=true
 		else
@@ -162,7 +179,7 @@ else
 			log "Dummy plug is not needed right now"
 			log "TODO: Make sure this is actually correct"
 			# shellcheck disable=SC2312
-			_output_to_stream_out=$(wlr-randr | grep -B5 'Enabled: yes' --no-group-separator | grep -v '^\s' | grep -v "${_stream_display}" | cut -d ' ' -f 1)
+			_main_computer_display=$(echo "${stream_d}" | cut -d ' ' -f 1)
 		fi
 	else
 		# TODO: properly handle 'disconnected primary'. Not sure HOW this happens, but I'm staring at it right now.
@@ -170,6 +187,7 @@ else
 		_output_to_stream_out=$(xrandr | grep connected -w | awk '{print $1}' | head -n1)
 	fi
 	# shellcheck disable=SC2312
+	# FIXME: This is useful but it currently depends on a varaiable that is not set
 	if wlr-randr | grep -A5 "${_output_to_stream_out}" | grep -q 'Enabled: no'; then
 		log "WARNING: Primary Monitor was not enabled!!!!!!! Force-enabling dummy plug as a cop-out"
 		if [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
@@ -231,9 +249,9 @@ get_closest_mode() {
 
 ###### Set the display modes
 
-log "Assert: PRIMARY:DUMMY == ${_output_to_stream_out}:${_stream_display}"
-log "Primary output: ${_output_to_stream_out}"
-if [[ "${_output_to_stream_out}" == "" ]]; then
+log "Assert: PRIMARY:DUMMY == ${_seat_display}:${_stream_display}"
+log "Primary output: ${_seat_display}"
+if [[ ${_output_to_stream_out} == "" ]]; then
 	log "Could not determine output to stream out!!!"
 	exit 3
 fi
@@ -247,7 +265,7 @@ if [[ -n ${_output_to_stream_out} ]]; then
 			# sh -c \"if pgrep plasmashell; then output=`~/scripts/get_primary_monitor`; kscreen-doctor output.${output}.vrrpolicy.never; kscreen-doctor.output.${output}.mode.2560x1440@120; fi\""}]
 			# TODO: revisit once KDE has fully native support without Xwayland
 			# TODO: Get the available mode that's the closest to the wanted one
-			log "Attempting to run 'kscreen-doctor output."${_output_to_stream_out}".mode."${_client_width}"x"${_client_height}"@"${_stream_refresh_rate}"'"
+			log "Attempting to run 'kscreen-doctor output.${_output_to_stream_out}.mode.${_client_width}x${_client_height}@${_stream_refresh_rate}'"
 			kscreen-doctor output."${_output_to_stream_out}".mode."${_client_width}"x"${_client_height}"@"${_stream_refresh_rate}"
 			kscreen-doctor output."${_output_to_stream_out}".vrrpolicy.always
 		elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
@@ -259,7 +277,7 @@ if [[ -n ${_output_to_stream_out} ]]; then
 			# FIXME: Doesn't seem to work for hyprland
 			# wlr_get_closest_mode "${_output_to_stream_out}" "${_client_width}" "${_client_height}" "${_stream_refresh_rate}"
 			hyprctl keyword monitor "${_output_to_stream_out}","${_client_width}"x"${_client_height}"@"${_stream_refresh_rate}"
-			# if [[ ${_output_to_stream_out} != "$_dummy_plug" ]]; then
+			# if [[ ${_output_to_stream_out} != "$_stream_display" ]]; then
 			# 	hyprctl keyword monitor "${_stream_display}",disable
 			# fi
 		elif [[ ${_session_type} == "wayland" ]]; then
@@ -270,7 +288,7 @@ if [[ -n ${_output_to_stream_out} ]]; then
 		fi
 	elif [[ $1 == "undo" ]]; then
 		#TODO: Use variation of wlr_get_closest_mode to restore desired resolution
-		# TODO: make disabling "$_dummy_plug" optional
+		# TODO: make disabling "$_stream_display" optional
 		if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
 			# TODO: Find preferred mode. it is available through command completion
 			kscreen-doctor output."${_output_to_stream_out}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
@@ -288,7 +306,7 @@ if [[ -n ${_output_to_stream_out} ]]; then
 				hyprctl keyword monitor "${_output_to_stream_out}",preferred
 			fi
 			# TODO: Only disable dummy plug if not the last display
-			# if [[ ${_output_to_stream_out} != "$_dummy_plug" ]]; then
+			# if [[ ${_output_to_stream_out} != "$_stream_display" ]]; then
 			# 	hyprctl keyword monitor "${_stream_display}",disable
 			# fi
 		elif [[ ${_session_type} == "wayland" ]]; then
