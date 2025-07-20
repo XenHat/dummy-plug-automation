@@ -141,15 +141,18 @@ else
 		log "Automatic resolution change is not available: wlr-randr not found"
 		return
 	fi
-	log "DEBUG: Stage 1"
 	if [[ ${_session_type} == "wayland" ]]; then
-		log "DEBUG: Stage 1: Wayland"
 		# NOTE: wlr-randr has no concept of primary monitor
 		# TODO: Make sure we don't disable the only present display
-		# if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_preferred_monitor" -c) -gt 0 ]]; then
+		# if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_seat_display" -c) -gt 0 ]]; then
 		# Check if there is another display enabled beside the dummy plug
+		# TODO:
 		# shellcheck disable=SC2312
-		wlr_randr=$(wlr-randr)
+		# FIXME: This works in the terminal but not in the script???
+		wlr_randr="$(wlr-randr)"
+		log "wlr-randr: \n${wlr_randr}"
+		enabled_connectors=$(echo "${wlr_randr}" | grep --no-group-separator 'Enabled: yes' -B5 | grep -E '(DP|HDMI)-' | cut -d ' ' -f 1)
+		log "Enabled Connectors: ${enabled_connectors}"
 		if [[ $(echo "${wlr_randr}" | grep --no-group-separator "${_dummy_plug}" -A5 | grep 'Enabled: yes' -c) -gt 0 ]]; then
 			log "Dummy enabled: 1"
 			# is_dummy_enabled=true
