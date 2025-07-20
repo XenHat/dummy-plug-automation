@@ -27,7 +27,7 @@ command -v agrep >/dev/null || exit 2
 
 _logger=''
 log() {
-	if [[ -z "$_logger" ]]; then
+	if [[ -z $_logger ]]; then
 		if command -v logger >/dev/null 2>&1; then
 			_logger='logger -t dpa'
 		else
@@ -60,19 +60,22 @@ else
 
 		if [[ -n ${_session_type} ]]; then
 			echo "${_session_type}"
+			return
 		else
 			environment=$(env)
 			if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
 				echo "wayland"
+				return
 			elif grep -qc "DISPLAY" <<<"${environment}"; then
 				echo "x11"
+				return
 			fi
 		fi
 		echo "none"
 	}
 	_session_type=$(get_session_type)
 fi
-if [[ "$_session_type" == "tty" ]]; then
+if [[ $_session_type == "tty" ]]; then
 	log "running in TTY; not performing automation"
 	exit 0
 fi
@@ -233,7 +236,7 @@ get_closest_mode() {
 
 log "Assert: PRIMARY:DUMMY == ${_output_to_stream_out}:${_stream_display}"
 log "Primary output: ${_output_to_stream_out}"
-if [[ "${_output_to_stream_out}" == "" ]]; then
+if [[ ${_output_to_stream_out} == "" ]]; then
 	log "Could not determine output to stream out!!!"
 	exit 3
 fi
