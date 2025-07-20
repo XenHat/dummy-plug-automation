@@ -10,6 +10,7 @@ _seat_resolution=${DEFAULT_RESOLUTION:-2560x1440}
 _seat_refresh_rate=${DEFAULT_REFRESH_RATE:-60}
 _default_vrr_mode=automatic
 # FIXME: Non-predictable connector name.
+_seat_display="DP-1"
 _stream_display=HDMI-A-1
 _client_height=${SUNSHINE_CLIENT_HEIGHT:-720}
 _client_width=${SUNSHINE_CLIENT_WIDTH:-1280}
@@ -52,28 +53,42 @@ wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)'
 if [[ -n ${XDG_SESSION_TYPE} ]]; then
 	_session_type="${XDG_SESSION_TYPE}"
 else
-	get_session_type() {
-		# Get systemd session type
-		# FIXME: hyprland and plasma-wayland don't show as "active", but as a seat on tty3
-		# shellcheck disable=SC2312
-		_session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "${USER}" | grep -v manager))" -p Type | awk -F= '{print $2}')
-
-		if [[ -n ${_session_type} ]]; then
-			echo "${_session_type}"
-			return
+	if [[ ${_session_type} != "x11" ]] && [[ ${_session_type} != "wayland" ]]; then
+		log "Falling back to environment for session type detection"
+		environment=$(printenv)
+		if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
+			_session_type="wayland"
+		elif grep -qc "DISPLAY" <<<"${environment}"; then
+			_session_type="x11"
 		else
-			environment=$(env)
-			if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
-				echo "wayland"
-				return
-			elif grep -qc "DISPLAY" <<<"${environment}"; then
-				echo "x11"
-				return
-			fi
+			log "Unknown session type: '${_session_type}'. Please fix me!"
+			exit 4
 		fi
-		echo "none"
-	}
-	_session_type=$(get_session_type)
+		unset environment
+	else
+		get_session_type() {
+			# Get systemd session type
+			# FIXME: hyprland and plasma-wayland don't show as "active", but as a seat on tty3
+			# shellcheck disable=SC2312
+			_session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "${USER}" | grep -v manager))" -p Type | awk -F= '{print $2}')
+
+			if [[ -n ${_session_type} ]]; then
+				echo "${_session_type}"
+				return
+			else
+				environment=$(env)
+				if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
+					echo "wayland"
+					return
+				elif grep -qc "DISPLAY" <<<"${environment}"; then
+					echo "x11"
+					return
+				fi
+			fi
+			echo "none"
+		}
+		_session_type=$(get_session_type)
+	fi
 fi
 # Workaround for missing environment variables when sunshine is running from a systemd unit
 if [[ ${_session_type} == "wayland" ]] && [[ -z $WAYLAND_DISPLAY ]]; then
@@ -85,19 +100,7 @@ elif [[ ${_session_type} == "tty" ]]; then
 	exit 0
 fi
 log "Session type: ${_session_type}"
-if [[ ${_session_type} != "x11" ]] && [[ ${_session_type} != "wayland" ]]; then
-	log "Falling back to environment for session type detection"
-	environment=$(printenv)
-	if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
-		_session_type="wayland"
-	elif grep -qc "DISPLAY" <<<"${environment}"; then
-		_session_type="x11"
-	else
-		log "Unknown session type: '${_session_type}'. Please fix me!"
-		exit 4
-	fi
-	unset environment
-fi
+
 _connector_name_format="DP-"
 # One day, we'll have a bloody standard for connector names...
 if [[ ${_session_type} == "x11" ]]; then
