@@ -22,7 +22,10 @@ _stream_resolution="${_client_width}x${_client_height}"
 # 	PREFERRED_DISPLAY="DP-1"
 # fi
 # _preferred_monitor_index=1
-command -v agrep >/dev/null || exit 2
+if ! command -v agrep >/dev/null; then
+	echo "agrep not found, cannot continue"
+	exit 2
+fi
 ########### End of user configuration #####################
 ###########################################################
 ## No configurable values below
