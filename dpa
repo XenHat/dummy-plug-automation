@@ -298,7 +298,6 @@ set_display_mode() {
 			log::info "Enabling ${_stream_display}"
 			kscreen-doctor output."${_stream_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"
 			kscreen-doctor output."${_stream_display}".enable
-			sleep 2
 		fi
 		for connector in $(get_connectors_list); do
 			if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
@@ -310,7 +309,6 @@ set_display_mode() {
 				log::info "Disabling ${connector}"
 				log::info "Attempting kscreen-doctor output.${connector}.disable"
 				kscreen-doctor output."${connector}".disable
-				sleep 2
 			elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
 				log::info "Detected GNOME"
 				# Modern GNOME uses gdctl. I have thoughts about this program...
