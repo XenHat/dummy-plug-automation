@@ -297,7 +297,7 @@ set_display_mode() {
 			log::info "Detected KDE"
 			log::info "Enabling ${_stream_display}"
 			kscreen-doctor output."${_stream_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"
-			kscreen_doctor output."${_stream_display}".enable
+			kscreen-doctor output."${_stream_display}".enable
 			sleep 2
 		fi
 		for connector in $(get_connectors_list); do
@@ -308,8 +308,8 @@ set_display_mode() {
 					continue
 				fi
 				log::info "Disabling ${connector}"
-				log::info "Attempting kscreen_doctor output.${connector}.disable"
-				kscreen_doctor output."${connector}".disable
+				log::info "Attempting kscreen-doctor output.${connector}.disable"
+				kscreen-doctor output."${connector}".disable
 				sleep 2
 			elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
 				log::info "Detected GNOME"
@@ -376,7 +376,7 @@ set_display_mode() {
 		if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
 			if [[ ${_stream_display} != "${_seat_display}" ]]; then
 				log::info "Disabling ${_stream_display}"
-				kscreen_doctor output."${_stream_display}".disable
+				kscreen-doctor output."${_stream_display}".disable
 			fi
 		fi
 	fi
