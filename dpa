@@ -345,7 +345,7 @@ set_display_mode() {
 					kscreen-doctor output."${connector}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
 					kscreen-doctor output."${connector}.vrrpolicy.${_default_vrr_mode}"
 				fi
-				kscreen.doctor output."${connector}".enable
+				kscreen-doctor output."${connector}".enable
 			elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
 				log::info "WIP"
 				# TODO: Move calls to get_closest_mode outside this function
