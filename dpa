@@ -11,8 +11,8 @@ _seat_resolution=${DEFAULT_RESOLUTION:-2560x1440}
 _seat_refresh_rate=${DEFAULT_REFRESH_RATE:-60}
 _default_vrr_mode=automatic
 # FIXME: Non-predictable connector name.
-_seat_display="DP-1"
-_stream_display="HDMI-A-1"
+_seat_display="${DEFAULT_SEAT_DISPLAY:-DP-1}"
+_stream_display="${DEFAULT_STREAM_DISPLAY:-HDMI-A-1}"
 _client_height=${SUNSHINE_CLIENT_HEIGHT:-720}
 _client_width=${SUNSHINE_CLIENT_WIDTH:-1280}
 _stream_refresh_rate=${SUNSHINE_CLIENT_FPS:-60}
