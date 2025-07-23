@@ -9,7 +9,7 @@
 # Resolution to restore to until default mode and/or mode restore is implemented
 _seat_resolution=${DEFAULT_RESOLUTION:-2560x1440}
 _seat_refresh_rate=${DEFAULT_REFRESH_RATE:-60}
-_default_vrr_mode=automatic
+_default_vrr_mode=${DEFAULT_VRR_MODE:-automatic}
 # FIXME: Non-predictable connector name.
 _seat_display="${DEFAULT_SEAT_DISPLAY:-DP-1}"
 _stream_display="${DEFAULT_STREAM_DISPLAY:-HDMI-A-1}"
