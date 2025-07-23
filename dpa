@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# FIXME: Cannot get the session type while running sunshine as a systemd service somehow
 ###########################################################
 ########### Start user configuration ######################
 # TODO: Fetch preferred mode from EDID
@@ -21,7 +22,10 @@ _stream_resolution="${_client_width}x${_client_height}"
 # 	PREFERRED_DISPLAY="DP-1"
 # fi
 # _preferred_monitor_index=1
-command -v agrep >/dev/null || exit 2
+if ! command -v agrep >/dev/null; then
+	echo "agrep not found, cannot continue"
+	exit 2
+fi
 ########### End of user configuration #####################
 ###########################################################
 ## No configurable values below
@@ -43,62 +47,6 @@ log() {
 # TODO: Organize refactor to do as little work as possible;
 # TODO: Find and save available modes as soon as possible
 # FIXME: Move this call in the wayland section...
-if ! command -v wlr-randr; then
-	log "Automatic resolution change is not available: wlr-randr not found"
-	return
-fi
-# i.e. No need to check for session type if using Hyprland since it's wayland
-# shellcheck disable=SC2312
-wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)'
-if [[ -n ${XDG_SESSION_TYPE} ]]; then
-	_session_type="${XDG_SESSION_TYPE}"
-else
-	get_session_type() {
-		# Get systemd session type
-		# FIXME: hyprland and plasma-wayland don't show as "active", but as a seat on tty3
-		# shellcheck disable=SC2312
-		_session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "${USER}" | grep -v manager))" -p Type | awk -F= '{print $2}')
-
-		if [[ -n ${_session_type} ]]; then
-			echo "${_session_type}"
-			return
-		else
-			environment=$(env)
-			if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
-				echo "wayland"
-				return
-			elif grep -qc "DISPLAY" <<<"${environment}"; then
-				echo "x11"
-				return
-			fi
-		fi
-		echo "none"
-	}
-	_session_type=$(get_session_type)
-	if [[ ${_session_type} != "x11" ]] && [[ ${_session_type} != "wayland" ]]; then
-		log "Falling back to environment for session type detection"
-		environment=$(printenv)
-		if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
-			_session_type="wayland"
-		elif grep -qc "DISPLAY" <<<"${environment}"; then
-			_session_type="x11"
-		else
-			log "Unknown session type: '${_session_type}'. Please fix me!"
-			exit 4
-		fi
-		unset environment
-	fi
-fi
-# Workaround for missing environment variables when sunshine is running from a systemd unit
-if [[ ${_session_type} == "wayland" ]] && [[ -z $WAYLAND_DISPLAY ]]; then
-	export WAYLAND_DISPLAY='wayland-1'
-elif [[ ${_session_type} == "x11" ]]; then
-	export DISPLAY=':0'
-elif [[ ${_session_type} == "tty" ]]; then
-	log "running in TTY; not performing automation"
-	exit 0
-fi
-log "Session type: ${_session_type}"
 
 _connector_name_format="DP-"
 # # One day, we'll have a bloody standard for connector names...
@@ -113,6 +61,33 @@ _connector_name_format="DP-"
 _output_to_stream_out=""
 # is_dummy_enabled=false
 is_there_other_active_displays=false
+
+get_systemd_session_type() {
+	# Get systemd session type
+	# FIXME: hyprland doesn't show as "active", but as a seat on tty3
+	# user_sessions=$(loginctl list_sessions | grep "$USER")
+	if [[ -n $XDG_SESSION_TYPE ]]; then
+		_session_type="$XDG_SESSION_TYPE"
+	else
+		# shellcheck disable=SC2312
+		_session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep -v manager))" -p Type | awk -F= '{print $2}')
+	fi
+
+	if [[ -n $_session_type ]]; then
+		echo "$_session_type"
+		exit 0
+	else
+		environment=$(env)
+		if grep -qc "WAYLAND_DISPLAY" <<<"$environment"; then
+			echo "wayland"
+			exit 0
+		elif grep -qc "DISPLAY" <<<"$environment"; then
+			echo "x11"
+			exit 0
+		fi
+	fi
+	echo "none"
+}
 
 # TODO: Properly label every step, I'm getting lost
 ##############################################################################
@@ -143,7 +118,28 @@ else
 		log "Automatic resolution change is not available: wlr-randr not found"
 		return
 	fi
+	# i.e. No need to check for session type if using Hyprland since it's wayland
+	# shellcheck disable=SC2312
+	# wlr-randr | grep -zoP '(?='"$1"')(?s).*?(?=Adaptive)'
+
+	_session_type=$(get_systemd_session_type)
+
+	# Workaround for missing environment variables when sunshine is running from a systemd unit
+	if [[ ${_session_type} == "wayland" ]] && [[ -z $WAYLAND_DISPLAY ]]; then
+		export WAYLAND_DISPLAY='wayland-1'
+	elif [[ ${_session_type} == "x11" ]]; then
+		export DISPLAY=':0'
+	elif [[ ${_session_type} == "tty" ]]; then
+		log "running in TTY; not performing automation"
+		exit 0
+	fi
+	log "Session type: ${_session_type}"
+
 	if [[ ${_session_type} == "wayland" ]]; then
+		if ! command -v wlr-randr; then
+			log "Automatic resolution change is not available: wlr-randr not found"
+			return
+		fi
 		# NOTE: wlr-randr has no concept of primary monitor
 		# TODO: Make sure we don't disable the only present display
 		# if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_seat_display" -c) -gt 0 ]]; then
@@ -152,7 +148,7 @@ else
 		# shellcheck disable=SC2312
 		# FIXME: This works in the terminal but not in the script???
 		wlr_randr="$(wlr-randr)"
-		log "wlr-randr: \n${wlr_randr}"
+		# log "wlr-randr: \n${wlr_randr}"
 		enabled_connectors=$(echo "${wlr_randr}" | grep --no-group-separator 'Enabled: yes' -B5 | grep -E '(DP|HDMI)-' | cut -d ' ' -f 1)
 		log "Enabled Connectors: ${enabled_connectors}"
 		if [[ $(echo "${wlr_randr}" | grep --no-group-separator "${_stream_display}" -A5 | grep 'Enabled: yes' -c) -gt 0 ]]; then
