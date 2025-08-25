@@ -206,6 +206,7 @@ get_display_configuration() {
 
 			# trunk-ignore(shellcheck/SC2312)
 			# FIXME: This is stupid and should not be checked that way
+			# FIXME: This does not work under Hyperland, use 'hyprctl monitors'
 			stream_d=$(echo "${wlr_randr}" | grep -B5 'Enabled: yes' --no-group-separator | grep -v '^\s' | grep "${_stream_display}" | cut -d ' ' -f 1)
 			log::info "Stream Connector: ${stream_d}"
 			if [[ $(echo "${stream_d}" | wc -l) -gt 0 ]]; then
@@ -393,10 +394,10 @@ if [[ ${_stream_display} == "" ]]; then
 fi
 
 unset _preferred_monitor _session_type _primary _client_height _client_width _refresh
-# TODO: COSMIC
-# TODO: Hyprland
+# TODO: re-implement COSMIC
+# TODO: re-implement hyprland
 # FIXME: Make sure dummy plug is enabled on connect. Seems to fail in Hyprland
-# TODO: awesomewm, dwm, etc
+# TODO: test X11 for awesomewm, dwm, etc
 # TODO: NVIDIA and Intel gpus support
 
 # vim: ft=sh
