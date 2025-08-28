@@ -340,6 +340,7 @@ set_display_mode() {
 			fi
 		done
 	elif [[ $1 == "undo" ]]; then
+		# FIXME: very flaky restoration of monitors state if pc is slept then woken up with monitors disabled
 		# TODO: if the only display isn't the stream display, re-enable all displays and turn off the stream display
 		# TODO: Use variation of wlr_get_closest_mode to restore desired resolution
 		# TODO: make disabling "$_stream_display" optional
