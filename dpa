@@ -279,21 +279,31 @@ get_closest_mode() {
 	# TODO: Check if this works in all environments, this might make things easier
 	available_modes=$(for edid in /sys/class/drm/card*-"${_stream_display}"/edid; do edid-decode "$edid" 2>&1 | grep -E '(DTD|DMT|IBM|Apple)' 2>&1; done | tr -s ' ' | cut -d ':' -f 2 | cut -d ' ' -f 2-3) 2>&1
 	# FIXME: asking for 1280x800 when only 1280720 is available should return 1280x720
-	closest_rez=$(echo "$available_modes" 2>&1 | agrep "${_client_width}x${_client_height}")
-	log::info "${closest_rez}"
+	# FIXME: When more than one resolution is available, thie filtering breaks
+	tmp_rez=$(echo "$available_modes" 2>&1 | agrep "${_client_width}x${_client_height}" | uniq)
+	log::info "closest_rez: '${tmp_rez}'"
+	# split the rez and the mode
+	closest_rez=${tmp_rez% *}
+	closest_hz=${tmp_rez#* }
+	# Fix mismatch between refresh rate precision which causes match failure
+	closest_hz=$(printf '%.3f' "$closest_hz")
 	# NOTE: Sometimes the EDID will not report modes that can be set anyway. Pretend that it is available for now.
 	if [[ -z ${closest_rez} ]]; then
+		log::error "Failed to get best mode, using requested size"
 		_client_best_size="${_client_width}x${_client_height}"
+		_client_refresh_rate="${SUNSHINE_CLIENT_FPS}"
 	else
-		rez_match=$(echo "$closest_rez" | agrep --max-errors=4 --max-count=1)
-		log::info "${rez_match}"
-		# Fix up extraneous precision causing failure to set the mode
-		_client_best_size=$(echo "$rez_match" | cut -d ' ' -f 1)
-		log::info "${_client_best_size}"
+		_client_best_size="${closest_rez}"
+		_client_refresh_rate="${closest_hz}"
 		# TODO: Handle case where client wants i.e. 90Hz but only 60Hz is available by using 60Hz
-		_client_refresh_rate=$(printf '%.3f' "$(echo "$rez_match" | cut -d ' ' -f 2)")
-		log::info "Closest mode: ${closest_rez}@${closest_hz}"
+		# if [[ -n "$tmp_hz" ]]; then
+		# _client_refresh_rate="$tmp_hz"
+		# else
+		# _client_refresh_rate="$closest_hz"
+		# fi
+		# _client_refresh_rate="${closest_hz}"
 	fi
+	log::info "Closest mode: ${_client_best_size}@${_client_refresh_rate}"
 }
 
 set_display_mode() {
@@ -301,7 +311,6 @@ set_display_mode() {
 		# NOTE: Enable the stream connector first, otherwise applications will crash if there is no display available
 		if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
 			log::info "Detected KDE"
-			# get_closest_mode "${_client_width}" "${_client_height}" "${_client_refresh_rate}"
 			log::info "Enabling ${_stream_display}"
 			# FIXME: asking for 1280x800@60 doesn't work here, but 'kscreen-doctor output.HDMI-A-1.mode.1280x800@60' works fine.
 			# FIXME: we end up with 1280x800@60@60
@@ -332,7 +341,6 @@ set_display_mode() {
 				# fi
 			elif [[ ${_session_type} == "wayland" ]]; then
 				log::info "Generic Wayland method"
-				get_closest_mode "${_client_width}" "${_client_height}" "${_client_refresh_rate}"
 				wlr-randr --output "${_stream_display}" --mode "${_client_best_size}@${_client_refresh_rate}" --adaptive-sync enabled
 			else
 				log::info "Generic X11 method"
@@ -342,7 +350,6 @@ set_display_mode() {
 	elif [[ $1 == "undo" ]]; then
 		# FIXME: very flaky restoration of monitors state if pc is slept then woken up with monitors disabled
 		# TODO: if the only display isn't the stream display, re-enable all displays and turn off the stream display
-		# TODO: Use variation of wlr_get_closest_mode to restore desired resolution
 		# TODO: make disabling "$_stream_display" optional
 		for connector in $(get_connectors_list); do
 			if [[ ${connector} == "${_stream_display}" ]]; then
@@ -358,7 +365,6 @@ set_display_mode() {
 				kscreen-doctor output."${connector}".enable
 			elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
 				log::info "WIP"
-				# TODO: Move calls to get_closest_mode outside this function
 				gdctl set --logical-monitor --primary --monitor "${_stream_display}" --mode "${_seat_resolution}" "${_seat_refresh_rate}"
 			elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
 				log::info "Detected Hyprland"
