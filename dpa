@@ -147,6 +147,7 @@ get_display_configuration() {
 		# shellcheck disable=SC2312
 		p=$(echo "${outputs}" | grep -v "Modes" | grep Output -A4 | xargs | sed 's/Output\:/\n/g' | grep -v disabled | awk '{print $6 " " $7 " " $2}' | sed '/^\s*$/d' | sort | head -n1 | cut -d ' ' -f 3)
 		log::info "primary display: ${p}"
+		_seat_display=${p}
 		# shellcheck disable=SC2312
 		# _stream_display=$(echo "${outputs}" | /bin/grep -B3 -A0 "${p}" | grep Output: -B0 -A0 | cut -d ' ' -f 3)
 		log::info "stream display: ${_stream_display}"
