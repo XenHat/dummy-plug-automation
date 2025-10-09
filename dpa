@@ -312,12 +312,33 @@ set_display_mode() {
 		if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
 			log::info "Detected KDE"
 			log::info "Enabling ${_stream_display}"
+			# FIXME: What to do when there's no output available?
 			# FIXME: asking for 1280x800@60 doesn't work here, but 'kscreen-doctor output.HDMI-A-1.mode.1280x800@60' works fine.
 			# FIXME: we end up with 1280x800@60@60
-			kscreen-doctor output."${_stream_display}".enable
-			log::info "Setting mode for ${_stream_display} to ${_client_best_size}@${_client_refresh_rate}"
-			log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${_client_best_size}@${_client_refresh_rate}"
-			kscreen-doctor output."${_stream_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"
+			if kscreen-doctor --outputs | grep -c "$_stream_display"; then
+				kscreen-doctor output."${_stream_display}".enable
+				log::info "Setting mode for ${_stream_display} to ${_client_best_size}@${_client_refresh_rate}"
+				log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${_client_best_size}@${_client_refresh_rate}"
+				if kscreen-doctor output."${_stream_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"; then
+					log::info "Success"
+				else
+					log::warning "Failure; screens not changed! re-attempting on current monitor instead."
+					if kscreen-doctor output."${_seat_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"; then
+						log::info "Okay, that worked."
+					else
+						log::warning "Still didn't work... :("
+					fi
+				fi
+			else
+				log::warning "Stream display not available; trying on the current display!"
+
+				# TODO: Deduplicate this and the above
+				if kscreen-doctor output."${_seat_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"; then
+					log::info "Okay, that worked."
+				else
+					log::warning "Still didn't work... :("
+				fi
+			fi
 		fi
 		for connector in $(get_connectors_list); do
 			if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
