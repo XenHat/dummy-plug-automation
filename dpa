@@ -34,7 +34,7 @@ function log::_write_log {
 		timestamp=$(date +'%y.%m.%d %H:%M:%S')
 		file="${BASH_SOURCE[2]##*/}"
 		function_name="${FUNCNAME[2]}"
-		logger "$(printf '%s [%s] [%s - %s]: %s\n' \
+		logger "dpa::$(printf '%s [%s] [%s - %s]: %s\n' \
 			"${log_level}" "${timestamp}" "${file}" "${function_name}" "${*}")"
 
 		printf >&2 '%s [%s] [%s - %s]: %s\n' \
@@ -147,6 +147,7 @@ get_display_configuration() {
 		# shellcheck disable=SC2312
 		p=$(echo "${outputs}" | grep -v "Modes" | grep Output -A4 | xargs | sed 's/Output\:/\n/g' | grep -v disabled | awk '{print $6 " " $7 " " $2}' | sed '/^\s*$/d' | sort | head -n1 | cut -d ' ' -f 3)
 		log::info "primary display: ${p}"
+		_seat_display=${p}
 		# shellcheck disable=SC2312
 		# _stream_display=$(echo "${outputs}" | /bin/grep -B3 -A0 "${p}" | grep Output: -B0 -A0 | cut -d ' ' -f 3)
 		log::info "stream display: ${_stream_display}"
@@ -206,6 +207,7 @@ get_display_configuration() {
 
 			# trunk-ignore(shellcheck/SC2312)
 			# FIXME: This is stupid and should not be checked that way
+			# FIXME: This does not work under Hyperland, use 'hyprctl monitors'
 			stream_d=$(echo "${wlr_randr}" | grep -B5 'Enabled: yes' --no-group-separator | grep -v '^\s' | grep "${_stream_display}" | cut -d ' ' -f 1)
 			log::info "Stream Connector: ${stream_d}"
 			if [[ $(echo "${stream_d}" | wc -l) -gt 0 ]]; then
@@ -274,20 +276,35 @@ function wlr_get_closest_mode() {
 	log::info "Closest mode for ${_stream_display}: ${_client_best_size}@${_client_refresh_rate}Hz"
 }
 
-# Params: <width> <height> <refresh_rate>
 get_closest_mode() {
 	# TODO: Check if this works in all environments, this might make things easier
 	available_modes=$(for edid in /sys/class/drm/card*-"${_stream_display}"/edid; do edid-decode "$edid" 2>&1 | grep -E '(DTD|DMT|IBM|Apple)' 2>&1; done | tr -s ' ' | cut -d ':' -f 2 | cut -d ' ' -f 2-3) 2>&1
-	closest_rez=$(echo "$available_modes" 2>&1 | agrep "${_client_width}x${_client_height}")
-	log::info "${closest_rez}"
-	rez_match=$(echo "$closest_rez" | agrep --max-errors=4 --max-count=1 "${3}")
-	log::info "${rez_match}"
-	# Fix up extraneous precision causing failure to set the mode
-	_client_best_size=$(echo "$rez_match" | cut -d ' ' -f 1)
-	log::info "${_client_best_size}"
-	# TODO: Handle case where client wants i.e. 90Hz but only 60Hz is available by using 60Hz
-	_client_refresh_rate=$(printf '%.3f' "$(echo "$rez_match" | cut -d ' ' -f 2)")
-	log::info "Closest mode: ${closest_rez}@${closest_hz}"
+	# FIXME: asking for 1280x800 when only 1280720 is available should return 1280x720
+	# FIXME: When more than one resolution is available, thie filtering breaks
+	tmp_rez=$(echo "$available_modes" 2>&1 | agrep "${_client_width}x${_client_height}" | uniq)
+	log::info "closest_rez: '${tmp_rez}'"
+	# split the rez and the mode
+	closest_rez=${tmp_rez% *}
+	closest_hz=${tmp_rez#* }
+	# Fix mismatch between refresh rate precision which causes match failure
+	closest_hz=$(printf '%.3f' "$closest_hz")
+	# NOTE: Sometimes the EDID will not report modes that can be set anyway. Pretend that it is available for now.
+	if [[ -z ${closest_rez} ]]; then
+		log::error "Failed to get best mode, using requested size"
+		_client_best_size="${_client_width}x${_client_height}"
+		_client_refresh_rate="${SUNSHINE_CLIENT_FPS}"
+	else
+		_client_best_size="${closest_rez}"
+		_client_refresh_rate="${closest_hz}"
+		# TODO: Handle case where client wants i.e. 90Hz but only 60Hz is available by using 60Hz
+		# if [[ -n "$tmp_hz" ]]; then
+		# _client_refresh_rate="$tmp_hz"
+		# else
+		# _client_refresh_rate="$closest_hz"
+		# fi
+		# _client_refresh_rate="${closest_hz}"
+	fi
+	log::info "Closest mode: ${_client_best_size}@${_client_refresh_rate}"
 }
 
 set_display_mode() {
@@ -296,8 +313,33 @@ set_display_mode() {
 		if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
 			log::info "Detected KDE"
 			log::info "Enabling ${_stream_display}"
-			kscreen-doctor output."${_stream_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"
-			kscreen-doctor output."${_stream_display}".enable
+			# FIXME: What to do when there's no output available?
+			# FIXME: asking for 1280x800@60 doesn't work here, but 'kscreen-doctor output.HDMI-A-1.mode.1280x800@60' works fine.
+			# FIXME: we end up with 1280x800@60@60
+			if kscreen-doctor --outputs | grep -c "$_stream_display"; then
+				kscreen-doctor output."${_stream_display}".enable
+				log::info "Setting mode for ${_stream_display} to ${_client_best_size}@${_client_refresh_rate}"
+				log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${_client_best_size}@${_client_refresh_rate}"
+				if kscreen-doctor output."${_stream_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"; then
+					log::info "Success"
+				else
+					log::warning "Failure; screens not changed! re-attempting on current monitor instead."
+					if kscreen-doctor output."${_seat_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"; then
+						log::info "Okay, that worked."
+					else
+						log::warning "Still didn't work... :("
+					fi
+				fi
+			else
+				log::warning "Stream display not available; trying on the current display!"
+
+				# TODO: Deduplicate this and the above
+				if kscreen-doctor output."${_seat_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"; then
+					log::info "Okay, that worked."
+				else
+					log::warning "Still didn't work... :("
+				fi
+			fi
 		fi
 		for connector in $(get_connectors_list); do
 			if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
@@ -307,7 +349,7 @@ set_display_mode() {
 					continue
 				fi
 				log::info "Disabling ${connector}"
-				log::info "Attempting kscreen-doctor output.${connector}.disable"
+				log::debug "Attempting kscreen-doctor output.${connector}.disable"
 				kscreen-doctor output."${connector}".disable
 			elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
 				log::info "Detected GNOME"
@@ -321,7 +363,6 @@ set_display_mode() {
 				# fi
 			elif [[ ${_session_type} == "wayland" ]]; then
 				log::info "Generic Wayland method"
-				get_closest_mode "${_stream_display} ${_client_width} ${_client_height} ${_client_refresh_rate}"
 				wlr-randr --output "${_stream_display}" --mode "${_client_best_size}@${_client_refresh_rate}" --adaptive-sync enabled
 			else
 				log::info "Generic X11 method"
@@ -329,14 +370,15 @@ set_display_mode() {
 			fi
 		done
 	elif [[ $1 == "undo" ]]; then
+		# FIXME: very flaky restoration of monitors state if pc is slept then woken up with monitors disabled
 		# TODO: if the only display isn't the stream display, re-enable all displays and turn off the stream display
-		# TODO: Use variation of wlr_get_closest_mode to restore desired resolution
 		# TODO: make disabling "$_stream_display" optional
 		for connector in $(get_connectors_list); do
 			if [[ ${connector} == "${_stream_display}" ]]; then
 				continue
 			fi
 			if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
+				log::info "Detected KDE"
 				# TODO: Find preferred mode. it is available through command completion
 				if [[ ${connector} == "${_seat_display}" ]]; then
 					log::info "Enabling ${connector}"
@@ -346,7 +388,6 @@ set_display_mode() {
 				kscreen-doctor output."${connector}".enable
 			elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
 				log::info "WIP"
-				# TODO: Move calls to get_closest_mode outside this function
 				gdctl set --logical-monitor --primary --monitor "${_stream_display}" --mode "${_seat_resolution}" "${_seat_refresh_rate}"
 			elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
 				log::info "Detected Hyprland"
@@ -392,11 +433,15 @@ if [[ ${_stream_display} == "" ]]; then
 	exit 3
 fi
 
+# Set the preferred monitor for WINE's wayland driver
+WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
+export WAYLANDDRV_PRIMARY_MONITOR
+
 unset _preferred_monitor _session_type _primary _client_height _client_width _refresh
-# TODO: COSMIC
-# TODO: Hyprland
+# TODO: re-implement COSMIC
+# TODO: re-implement hyprland
 # FIXME: Make sure dummy plug is enabled on connect. Seems to fail in Hyprland
-# TODO: awesomewm, dwm, etc
+# TODO: test X11 for awesomewm, dwm, etc
 # TODO: NVIDIA and Intel gpus support
 
 # vim: ft=sh
