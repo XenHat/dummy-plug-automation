@@ -34,7 +34,7 @@ function log::_write_log {
 		timestamp=$(date +'%y.%m.%d %H:%M:%S')
 		file="${BASH_SOURCE[2]##*/}"
 		function_name="${FUNCNAME[2]}"
-		logger "$(printf '%s [%s] [%s - %s]: %s\n' \
+		logger "dpa::$(printf '%s [%s] [%s - %s]: %s\n' \
 			"${log_level}" "${timestamp}" "${file}" "${function_name}" "${*}")"
 
 		printf >&2 '%s [%s] [%s - %s]: %s\n' \
@@ -356,6 +356,7 @@ set_display_mode() {
 				continue
 			fi
 			if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
+				log::info "Detected KDE"
 				# TODO: Find preferred mode. it is available through command completion
 				if [[ ${connector} == "${_seat_display}" ]]; then
 					log::info "Enabling ${connector}"
