@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -x
-# Log facility from https://blog.brujordet.no/post/bash/debugging_bash_like_a_sire/
+# Log facility from
+# https://blog.brujordet.no/post/bash/debugging_bash_like_a_sire/
 LOG_LEVEL=${LOG_LEVEL:-1}
 function log::info {
 	log::_write_log "INFO" "$@"
@@ -81,15 +82,15 @@ _client_width=${SUNSHINE_CLIENT_WIDTH:-1280}
 _client_refresh_rate=${SUNSHINE_CLIENT_FPS:-60}
 _client_best_size=""
 log::info "Global variables at start:
-_seat_resolution=${DEFAULT_RESOLUTION:-2560x1440}
-_seat_refresh_rate=${DEFAULT_REFRESH_RATE:-60}
-_default_vrr_mode=${DEFAULT_VRR_MODE:-automatic}
-_seat_display=${DEFAULT_SEAT_DISPLAY:-DP-1}
-_stream_display=${DEFAULT_STREAM_DISPLAY:=HDMI-A-1}
-_client_height=${SUNSHINE_CLIENT_HEIGHT:-720}
-_client_width=${SUNSHINE_CLIENT_WIDTH:-1280}
-_client_refresh_rate=${SUNSHINE_CLIENT_FPS:-60}
-_client_best_size=''
+_seat_resolution=$_seat_resolution
+_seat_refresh_rate=$_seat_refresh_rate
+_default_vrr_mode=$_default_vrr_mode
+_seat_display=$_seat_display
+_stream_display=$_stream_display
+_client_height=$_client_height
+_client_width=$_client_width
+_client_refresh_rate=$_client_refresh_rate
+_client_best_size=$_client_best_size
 "
 # FIXME: Resolution change is fragile on Hypeland
 
@@ -107,7 +108,12 @@ get_systemd_session_type() {
 		_session_type="$XDG_SESSION_TYPE"
 	else
 		# shellcheck disable=SC2312
-		_session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep -v manager))" -p Type | awk -F= '{print $2}')
+		_session_type=$(
+			loginctl 2>/dev/null show-session \
+				"$(awk '/tty/ {print $1}' <(loginctl list-sessions |
+					grep "$USER" |
+					grep -v manager))" -p Type | awk -F= '{print $2}'
+		)
 	fi
 
 	if [[ -n $_session_type ]]; then
@@ -142,10 +148,22 @@ get_display_configuration() {
 	if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
 		log::info "KDE Mode"
 		# shellcheck disable=SC2312
-		outputs=$(kscreen-doctor -o | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g")
-		# transform output into lines, remove disabled outputs, and sort by priority, then return the output to prefer by priority
+		outputs=$(kscreen-doctor -o |
+			sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g")
+		# transform output into lines, remove disabled outputs, and sort by priority,
+		# then return the output to prefer by priority
 		# shellcheck disable=SC2312
-		p=$(echo "${outputs}" | grep -v "Modes" | grep Output -A4 | xargs | sed 's/Output\:/\n/g' | grep -v disabled | awk '{print $6 " " $7 " " $2}' | sed '/^\s*$/d' | sort | head -n1 | cut -d ' ' -f 3)
+		p=$(echo "${outputs}" |
+			grep -v "Modes" |
+			grep Output -A4 |
+			xargs |
+			sed 's/Output\:/\n/g' |
+			grep -v disabled |
+			awk '{print $6 " " $7 " " $2}' |
+			sed '/^\s*$/d' |
+			sort |
+			head -n1 |
+			cut -d ' ' -f 3)
 		log::info "primary display: ${p}"
 		_seat_display=${p}
 		# shellcheck disable=SC2312
@@ -156,7 +174,13 @@ get_display_configuration() {
 	elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
 		set -x
 		log::info "echo GNOME Mode"
-		_stream_display=$(gdctl show | grep 'Primary: yes' -A2 | tr -s ' ' | tr -d '└' | tr -d '─' | tail -n1 | cut -d ' ' -f 2)
+		_stream_display=$(gdctl show |
+			grep 'Primary: yes' -A2 |
+			tr -s ' ' |
+			tr -d '└' |
+			tr -d '─' |
+			tail -n1 |
+			cut -d ' ' -f 2)
 	else
 		# is our preferred display enabled?
 		set -x
@@ -196,9 +220,14 @@ get_display_configuration() {
 			# FIXME: This works in the terminal but not in the script???
 			wlr_randr="$(wlr-randr)"
 			# log::info "wlr-randr: \n${wlr_randr}"
-			enabled_connectors=$(echo "${wlr_randr}" | grep --no-group-separator 'Enabled: yes' -B5 | grep -E '(DP|HDMI)-' | cut -d ' ' -f 1)
+			enabled_connectors=$(echo "${wlr_randr}" |
+				grep --no-group-separator 'Enabled: yes' -B5 |
+				grep -E '(DP|HDMI)-' |
+				cut -d ' ' -f 1)
 			log::info "Enabled Connectors: ${enabled_connectors}"
-			if [[ $(echo "${wlr_randr}" | grep --no-group-separator "${_stream_display}" -A5 | grep 'Enabled: yes' -c) -gt 0 ]]; then
+			if [[ $(echo "${wlr_randr}" |
+				grep --no-group-separator "${_stream_display}" -A5 |
+				grep 'Enabled: yes' -c) -gt 0 ]]; then
 				log::info "Dummy enabled: 1"
 				# is_dummy_enabled=true
 			else
@@ -208,7 +237,11 @@ get_display_configuration() {
 			# trunk-ignore(shellcheck/SC2312)
 			# FIXME: This is stupid and should not be checked that way
 			# FIXME: This does not work under Hyperland, use 'hyprctl monitors'
-			stream_d=$(echo "${wlr_randr}" | grep -B5 'Enabled: yes' --no-group-separator | grep -v '^\s' | grep "${_stream_display}" | cut -d ' ' -f 1)
+			stream_d=$(echo "${wlr_randr}" |
+				grep -B5 'Enabled: yes' --no-group-separator |
+				grep -v '^\s' |
+				grep "${_stream_display}" |
+				cut -d ' ' -f 1)
 			log::info "Stream Connector: ${stream_d}"
 			if [[ $(echo "${stream_d}" | wc -l) -gt 0 ]]; then
 				log::info "Other enabled: 1"
@@ -227,7 +260,10 @@ get_display_configuration() {
 		else
 			# TODO: properly handle 'disconnected primary'. Not sure HOW this happens, but I'm staring at it right now.
 			# shellcheck disable=SC2312
-			_stream_display=$(xrandr | grep connected -w | awk '{print $1}' | head -n1)
+			_stream_display=$(xrandr |
+				grep connected -w |
+				awk '{print $1}' |
+				head -n1)
 		fi
 		# shellcheck disable=SC2312
 		# FIXME: This is useful but it currently depends on a varaiable that is not set
@@ -262,9 +298,13 @@ function wlr_get_closest_mode() {
 	# log::info "result=$result"
 	closest_rez=$(echo "${result}" | fzf --filter="${w}x${h}")
 	# log::info "closest_rez=$closest_rez"
-	closest_hz=$(echo "${closest_rez}" | awk -v c=3 -v t="${r}" 'NR==1{d=$c-t;d=d<0?-d:d;v=$c;next}{m=$c-t;m=m<0?-m:m}m<d{d=m;v=$c}END{print v}')
+	closest_hz=$(echo "${closest_rez}" |
+		awk -v c=3 -v t="${r}" 'NR==1{d=$c-t;d=d<0?-d:d;v=$c;next}{m=$c-t;m=m<0?-m:m}m<d{d=m;v=$c}END{print v}')
 	# shellcheck disable=SC2312
-	result=$(wlr-randr | grep -zoP '(?='"${c}"')(?s).*?(?=Adaptive)' | fzf --filter="""${w}x${h} ${closest_hz}""" | tr -d ' ')
+	result=$(wlr-randr |
+		grep -zoP '(?='"${c}"')(?s).*?(?=Adaptive)' |
+		fzf --filter="""${w}x${h} ${closest_hz}""" |
+		tr -d ' ')
 	# TODO: Worth using an array to split instead?
 	closest_rez=$(echo "${result}" | cut -d ',' -f 1)
 	# shellcheck disable=SC2312
@@ -278,7 +318,11 @@ function wlr_get_closest_mode() {
 
 get_closest_mode() {
 	# TODO: Check if this works in all environments, this might make things easier
-	available_modes=$(for edid in /sys/class/drm/card*-"${_stream_display}"/edid; do edid-decode "$edid" 2>&1 | grep -E '(DTD|DMT|IBM|Apple)' 2>&1; done | tr -s ' ' | cut -d ':' -f 2 | cut -d ' ' -f 2-3) 2>&1
+	available_modes=$(for edid in /sys/class/drm/card*-"${_stream_display}"/edid; do edid-decode "$edid" 2>&1 |
+		grep -E '(DTD|DMT|IBM|Apple)' 2>&1; done |
+		tr -s ' ' |
+		cut -d ':' -f 2 |
+		cut -d ' ' -f 2-3) 2>&1
 	# FIXME: asking for 1280x800 when only 1280720 is available should return 1280x720
 	# FIXME: When more than one resolution is available, thie filtering breaks
 	tmp_rez=$(echo "$available_modes" 2>&1 | agrep "${_client_width}x${_client_height}" | uniq)
@@ -311,7 +355,8 @@ set_display_mode() {
 	if [[ $1 == "do" ]]; then
 		# NOTE: Enable the stream connector first, otherwise applications will crash if there is no display available
 		if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
-			log::info "Detected KDE"
+			log::info "DO::Detected KDE"
+			do_kde
 			log::info "Enabling ${_stream_display}"
 			# FIXME: What to do when there's no output available?
 			# FIXME: asking for 1280x800@60 doesn't work here, but 'kscreen-doctor output.HDMI-A-1.mode.1280x800@60' works fine.
@@ -377,9 +422,15 @@ set_display_mode() {
 			if [[ ${connector} == "${_stream_display}" ]]; then
 				continue
 			fi
+			# TODO: Move desktop detection out of the loop or something. Reduce repeated code being run every time.
+			# Detecting the environment and performing the display changes should be decoupled.
+			# Perhaps a discrete method for every desktop would be best?
+			# At this point, we are getting into the kind of complexity that is best suited for a compiled language, like
+			# C or C++.
 			if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
-				log::info "Detected KDE"
+				undo_kde
 				# TODO: Find preferred mode. it is available through command completion
+				log::info "UNDO::Detected KDE"
 				if [[ ${connector} == "${_seat_display}" ]]; then
 					log::info "Enabling ${connector}"
 					kscreen-doctor output."${connector}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
@@ -419,6 +470,22 @@ set_display_mode() {
 			fi
 		fi
 	fi
+}
+
+do_kde() {
+	log::info "Finish Me"
+}
+
+undo_kde() {
+	log::info "Finish Me"
+}
+
+do_gnome() {
+	log::info "Finish Me"
+}
+
+undo_gnome() {
+	log::info "Finish Me"
 }
 
 # Main logic
