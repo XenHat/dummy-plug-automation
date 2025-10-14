@@ -196,9 +196,9 @@ get_display_configuration() {
 		_session_type=$(get_systemd_session_type)
 
 		# Workaround for missing environment variables when sunshine is running from a systemd unit
-		if [[ ${_session_type} == "wayland" ]] && [[ -z ${WAYLAND_DISPLAY} ]]; then
+		if [[ ${_session_type} == "wayland" ]] && [[ -z "$WAYLAND_DISPLAY" ]]; then
 			export WAYLAND_DISPLAY='wayland-1'
-		elif [[ ${_session_type} == "x11" ]]; then
+		elif [[ ${_session_type} == "x11" ]] && [[ -z "$DISPLAY" ]]; then
 			export DISPLAY=':0'
 		elif [[ ${_session_type} == "tty" ]]; then
 			log::info "running in TTY; not performing automation"
