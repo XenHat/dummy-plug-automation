@@ -92,7 +92,7 @@ _client_width=$_client_width
 _client_refresh_rate=$_client_refresh_rate
 _client_best_size=$_client_best_size
 "
-# FIXME: Resolution change is fragile on Hypeland
+# FIXME: Resolution change is fragile on Hyprland
 
 # TODO: Save the current VRR mode if it exists to a file to restore it later
 # TODO: Organize refactor to do as little work as possible;
@@ -236,7 +236,7 @@ get_display_configuration() {
 
 			# trunk-ignore(shellcheck/SC2312)
 			# FIXME: This is stupid and should not be checked that way
-			# FIXME: This does not work under Hyperland, use 'hyprctl monitors'
+			# FIXME: This does not work under hyprland, use 'hyprctl monitors'
 			stream_d=$(echo "${wlr_randr}" |
 				grep -B5 'Enabled: yes' --no-group-separator |
 				grep -v '^\s' |
