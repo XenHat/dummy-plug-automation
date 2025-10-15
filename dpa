@@ -21,6 +21,23 @@
 #
 # https://blog.brujordet.no/post/bash/debugging_bash_like_a_sire/
 LOG_LEVEL=${LOG_LEVEL:-1}
+function log::_write_log {
+  local timestamp file function_name log_level
+  log_level=$1
+  shift
+
+  if log::level_is_active "${log_level}"; then
+    timestamp=$(date +'%y.%m.%d %H:%M:%S')
+    file="${BASH_SOURCE[2]##*/}"
+    function_name="${FUNCNAME[2]}"
+      logger "dpa::$(printf '%s [%s] [%s - %s]: %s\n' \
+        "${log_level}" "${timestamp}" "${file}" "${function_name}" "${*}")"
+
+      printf >&2 '%s [%s] [%s - %s]: %s\n' \
+        "${log_level}" "${timestamp}" "${file}" "${function_name}" "${*}"
+      # ;;
+  fi
+}
 function log::info {
   log::_write_log "INFO" "$@"
 }
@@ -43,25 +60,7 @@ function log::level_is_active {
 
   ((check_level >= current_level))
 }
-function log::_write_log {
-  local timestamp file function_name log_level
-  log_level=$1
-  shift
-
-  if log::level_is_active "${log_level}"; then
-    timestamp=$(date +'%y.%m.%d %H:%M:%S')
-    file="${BASH_SOURCE[2]##*/}"
-    function_name="${FUNCNAME[2]}"
-      logger "dpa::$(printf '%s [%s] [%s - %s]: %s\n' \
-        "${log_level}" "${timestamp}" "${file}" "${function_name}" "${*}")"
-
-      printf >&2 '%s [%s] [%s - %s]: %s\n' \
-        "${log_level}" "${timestamp}" "${file}" "${function_name}" "${*}"
-      # ;;
-  fi
-}
 function log::error {
-
   log::_write_log "ERROR" "$@"
   local stack_offset=1
   printf '%s:\n' 'Stacktrace:' >&2
@@ -180,7 +179,7 @@ get_display_configuration() {
     #TODO: Make this more readable
   elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
     set -x
-    log::info "echo GNOME Mode"
+    log::info "GNOME Mode"
     _stream_display=$(gdctl show |
       grep 'Primary: yes' -A2 |
       tr -s ' ' |
@@ -352,9 +351,11 @@ get_closest_mode() {
     fi
     log::info "Closest mode: ${_client_best_size}@${_client_refresh_rate}"
   }
+
 set_display_mode() {
   if [[ $1 == "do" ]]; then
     #NOTE: Enable the stream connector first, otherwise applications will crash if there is no display available
+    # FIXME: Do detection first, not each loop iteration
     # KDE {
     if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
       log::info "DO::Detected KDE"
@@ -402,7 +403,8 @@ set_display_mode() {
       elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
         log::info "Detected GNOME"
         # Modern GNOME uses gdctl. I have thoughts about this program...
-        gdctl set --logical-monitor --primary --monitor "${_stream_display}" --mode "${_stream_display}" "${_client_best_size}" "${_client_refresh_rate}"
+        log::info "gdctl set --logical-monitor --primary --monitor \"${_stream_display}\" --mode \"${_client_best_size}@${_client_refresh_rate}\""
+        gdctl set --logical-monitor --primary --monitor "${_stream_display}" --mode "${_client_best_size}@${_client_refresh_rate}"
       elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
         log::info "Detected Hyprland"
         hyprctl keyword monitor "${_stream_display}","${_client_best_size}"@"${_client_refresh_rate}"
@@ -442,7 +444,7 @@ elif [[ $1 == "undo" ]]; then
       kscreen-doctor output."${connector}".enable
     elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
       log::info "WIP"
-      gdctl set --logical-monitor --primary --monitor "${_stream_display}" --mode "${_seat_resolution}" "${_seat_refresh_rate}"
+      gdctl set --logical-monitor --primary --monitor "${_stream_display}" --mode "${_seat_resolution}@${_seat_refresh_rate}"
     elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
       log::info "Detected Hyprland"
       if [[ ${_stream_display} != "${_stream_display}" ]]; then
@@ -474,24 +476,55 @@ elif [[ $1 == "undo" ]]; then
           fi
     fi
   }
-do_kde() {
+kde::do() {
+  log::info "Finish Me"
+  for connector in $(get_connectors_list); do
+    if [[ "$connector" == "$_stream_display" ]]; then
+      continue
+    fi
+    log::info "Disabling $connector"
+    log::debug "Attempting 'kscreen-doctor output.${connector}.disable'"
+  done 
+}
+function kde::undo() {
   log::info "Finish Me"
 }
-undo_kde() {
-  log::info "Finish Me"
+# Format: <who> <what>@<Hz>
+function gnome::set() {
+  gdctl --logical-monitor --primary --monitor "$1" --mode "$2"
 }
-do_gnome() {
+function gnome::do() {
   log::info "Finish Me"
+  for connector in $(get_connectors_list); do
+    if [[ "$connector" == "$_stream_display" ]]; then
+      continue
+    fi
+    log::info "Disabling $connector"
+  gnome::set "$1" "$2"
+  done 
 }
-undo_gnome() {
+function gnome::undo() {
   log::info "Finish Me"
 }
 # Main logic {
+  if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
+    log::info "KDE"
+  elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
+    log::info "GNOME"
+  elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
+    log::info "Hyprland"
+  else
+      log::info "Entering generic environment methods"
+  fi
+
 get_display_configuration
 get_closest_mode
 set_display_mode "$1"
 
+#FIXME: This will sometimes report 'Assert: PRIMARY:DUMMY == DP-1:DP-2' which
+# is wrong. Should be DP2:HDMI-A-1
 log::info "Assert: PRIMARY:DUMMY == ${_seat_display}:${_stream_display}"
+#FIXME: This often reports the wrong connector i.e. DP-1 instead of DP-2
 log::info "Primary output: ${_seat_display}"
 if [[ ${_stream_display} == "" ]]; then
   log::info "Could not determine output to stream out!!!"
