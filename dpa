@@ -319,11 +319,18 @@ wlr_get_closest_mode() {
 }
 get_closest_mode() {
   #TODO: Check if this works in all environments, this might make things easier
-  available_modes=$(for edid in /sys/class/drm/card*-"${_stream_display}"/edid; do edid-decode "$edid" 2>&1 |
+  # Work around GNOME using HDMI-1 instead of HDMI-A-1
+  connector_name="$_stream_display"
+  if [[ "$_stream_display" =~ "HDMI-" ]] && [[ ! -r "/sys/class/drm/card*-${_stream_display}/edid" ]]; then
+  log::warn "connector '$_stream_display' doesn't exist, assuming virtual connector name and converting to likely physical connector name"
+    connector_name=${_stream_display/HDMI-/HDMI-A-}
+  fi
+  available_modes=$(for edid in /sys/class/drm/card*-"${connector_name}"/edid; do edid-decode "$edid" 2>&1 |
     grep -E '(DTD|DMT|IBM|Apple)' 2>&1; done |
     tr -s ' ' |
     cut -d ':' -f 2 |
     cut -d ' ' -f 2-3) 2>&1
+  log::info "available modes: $available_modes"
   #FIXME: asking for 1280x800 when only 1280720 is available should return 1280x720
   #FIXME: When more than one resolution is available, thie filtering breaks
   tmp_rez=$(echo "$available_modes" 2>&1 | agrep "${_client_width}x${_client_height}" | uniq)
@@ -334,7 +341,7 @@ get_closest_mode() {
   # Fix mismatch between refresh rate precision which causes match failure
   closest_hz=$(printf '%.3f' "$closest_hz")
   #NOTE: Sometimes the EDID will not report modes that can be set anyway. Pretend that it is available for now.
-  if [[ -z ${closest_rez} ]]; then
+  if [[ -z "${closest_hz}" ]]; then
     log::error "Failed to get best mode, using requested size"
     _client_best_size="${_client_width}x${_client_height}"
     _client_refresh_rate="${SUNSHINE_CLIENT_FPS}"
@@ -342,12 +349,14 @@ get_closest_mode() {
     _client_best_size="${closest_rez}"
     _client_refresh_rate="${closest_hz}"
     #TODO: Handle case where client wants i.e. 90Hz but only 60Hz is available by using 60Hz
-    # if [[ -n "$tmp_hz" ]]; then
-    # _client_refresh_rate="$tmp_hz"
-    # else
-    # _client_refresh_rate="$closest_hz"
-    # fi
-    # _client_refresh_rate="${closest_hz}"
+    if [[ -n "$tmp_hz" ]]; then
+      log::warn "Client wanted unavailable refresh rate '$SUNSHINE_CLIENT_FPS'"
+      # _client_refresh_rate="$tmp_hz"
+      # else
+      # _client_refresh_rate="$closest_hz"
+      # fi
+      # _client_refresh_rate="${closest_hz}"i
+  fi
     fi
     log::info "Closest mode: ${_client_best_size}@${_client_refresh_rate}"
   }
@@ -500,22 +509,22 @@ function gnome::do() {
       continue
     fi
     log::info "Disabling $connector"
-  gnome::set "$1" "$2"
+    gnome::set "$1" "$2"
   done 
 }
 function gnome::undo() {
   log::info "Finish Me"
 }
 # Main logic {
-  if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
-    log::info "KDE"
-  elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
-    log::info "GNOME"
-  elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
-    log::info "Hyprland"
-  else
-      log::info "Entering generic environment methods"
-  fi
+if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
+  log::info "KDE"
+elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
+  log::info "GNOME"
+elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
+  log::info "Hyprland"
+else
+  log::info "Entering generic environment methods"
+fi
 
 get_display_configuration
 get_closest_mode
