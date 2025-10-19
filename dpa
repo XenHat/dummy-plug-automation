@@ -76,7 +76,7 @@ function log::error {
 }
 # }
 # Trap errors immediately {
-trap 'log::error "An error has occurred"' ERR
+trap 'log::error "[TRAP] An error has occurred"' ERR
 # }
 # Dependencies {
 if ! command -v agrep >/dev/null; then
@@ -87,7 +87,6 @@ fi
 # }
 # is_dummy_enabled=false
 is_there_other_active_displays=false
-# Print the startup state {
 
 #Resolution to restore to until default mode and/or mode restore is implemented
 _seat_resolution=${DEFAULT_RESOLUTION:-2560x1440}
@@ -99,7 +98,8 @@ _client_height=${SUNSHINE_CLIENT_HEIGHT:-720}
 _client_width=${SUNSHINE_CLIENT_WIDTH:-1280}
 _client_refresh_rate=${SUNSHINE_CLIENT_FPS:-60}
 _client_best_size=""
-log::info "Global variables at start:
+# Print the startup state {
+log::debug "Global variables at start:
 _seat_resolution=$_seat_resolution
 _seat_refresh_rate=$_seat_refresh_rate
 _default_vrr_mode=$_default_vrr_mode
@@ -145,6 +145,13 @@ get_systemd_session_type() {
 get_connectors_list() {
   for edid in /sys/class/drm/card*-*-*/; do
     case ${edid} in *-Writeback-*) continue ;; esac
+    basename "${edid}" | sed 's/card[0-9]*\-//'
+  done
+}
+get_enabled_connectors_list() {
+  for edid in /sys/class/drm/card*-*-*/; do
+    case ${edid} in *-Writeback-*) continue ;; esac
+    if [[ "$(< "$edid/enabled")" == "disabled" ]]; then continue; fi
     basename "${edid}" | sed 's/card[0-9]*\-//'
   done
 }
@@ -270,7 +277,7 @@ get_display_configuration() {
     # shellcheck disable=SC2312
     #FIXME: This is useful but it currently depends on a varaiable that is not set
     if wlr-randr | grep -A5 "${_stream_display}" | grep -q 'Enabled: no'; then
-      log::warnin "Primary Monitor was not enabled!!!!!!! Force-enabling dummy plug as a cop-out"
+      log::warning "Primary Monitor was not enabled!!!!!!! Force-enabling dummy plug as a cop-out"
       if [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
         hyprctl keyword monitor "${_stream_display}",enabled
       else
@@ -322,7 +329,7 @@ get_closest_mode() {
   # Work around GNOME using HDMI-1 instead of HDMI-A-1
   connector_name="$_stream_display"
   if [[ "$_stream_display" =~ "HDMI-" ]] && [[ ! -r "/sys/class/drm/card*-${_stream_display}/edid" ]]; then
-  log::warn "connector '$_stream_display' doesn't exist, assuming virtual connector name and converting to likely physical connector name"
+    log::warning "connector '$_stream_display' doesn't exist, assuming virtual connector name and converting to likely physical connector name"
     connector_name=${_stream_display/HDMI-/HDMI-A-}
   fi
   available_modes=$(for edid in /sys/class/drm/card*-"${connector_name}"/edid; do edid-decode "$edid" 2>&1 |
@@ -349,19 +356,13 @@ get_closest_mode() {
     _client_best_size="${closest_rez}"
     _client_refresh_rate="${closest_hz}"
     #TODO: Handle case where client wants i.e. 90Hz but only 60Hz is available by using 60Hz
-    if [[ -n "$tmp_hz" ]]; then
-      log::warn "Client wanted unavailable refresh rate '$SUNSHINE_CLIENT_FPS'"
-      # _client_refresh_rate="$tmp_hz"
-      # else
-      # _client_refresh_rate="$closest_hz"
-      # fi
-      # _client_refresh_rate="${closest_hz}"i
+    log::warning "Client wanted '${SUNSHINE_CLIENT_FPS}Hz', using ${_client_refresh_rate}Hz"
   fi
-    fi
-    log::info "Closest mode: ${_client_best_size}@${_client_refresh_rate}"
-  }
+  log::info "Closest mode: ${_client_best_size}@${_client_refresh_rate}"
+}
 
 set_display_mode() {
+  # old methods
   if [[ $1 == "do" ]]; then
     #NOTE: Enable the stream connector first, otherwise applications will crash if there is no display available
     # FIXME: Do detection first, not each loop iteration
@@ -409,11 +410,11 @@ set_display_mode() {
         log::info "Disabling ${connector}"
         log::debug "Attempting kscreen-doctor output.${connector}.disable"
         kscreen-doctor output."${connector}".disable
-      elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
-        log::info "Detected GNOME"
+        # elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
+        # log::info "Handled elsewhere"
         # Modern GNOME uses gdctl. I have thoughts about this program...
-        log::info "gdctl set --logical-monitor --primary --monitor \"${_stream_display}\" --mode \"${_client_best_size}@${_client_refresh_rate}\""
-        gdctl set --logical-monitor --primary --monitor "${_stream_display}" --mode "${_client_best_size}@${_client_refresh_rate}"
+        # log::info "gdctl set --logical-monitor --primary --monitor \"${_stream_display}\" --mode \"${_client_best_size}@${_client_refresh_rate}\""
+        # gdctl set --logical-monitor --primary --monitor "${_stream_display}" --mode "${_client_best_size}@${_client_refresh_rate}"
       elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
         log::info "Detected Hyprland"
         hyprctl keyword monitor "${_stream_display}","${_client_best_size}"@"${_client_refresh_rate}"
@@ -451,9 +452,9 @@ elif [[ $1 == "undo" ]]; then
         kscreen-doctor output."${connector}.vrrpolicy.${_default_vrr_mode}"
       fi
       kscreen-doctor output."${connector}".enable
-    elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
-      log::info "WIP"
-      gdctl set --logical-monitor --primary --monitor "${_stream_display}" --mode "${_seat_resolution}@${_seat_refresh_rate}"
+      # elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
+      # log::info "Handled elsewhere"
+      #gdctl set --logical-monitor --primary --monitor "${_stream_display}" --mode "${_seat_resolution}@${_seat_refresh_rate}"
     elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
       log::info "Detected Hyprland"
       if [[ ${_stream_display} != "${_stream_display}" ]]; then
@@ -474,15 +475,15 @@ elif [[ $1 == "undo" ]]; then
       if [[ ${_stream_display} != "${_stream_display}" ]]; then
         wlr-randr --output "${_stream_display}" --off
       fi
-            fi
-          done
+  fi
+done
 
-          if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
-            if [[ ${_stream_display} != "${_seat_display}" ]]; then
-              log::info "Disabling ${_stream_display}"
-              kscreen-doctor output."${_stream_display}".disable
-            fi
-          fi
+if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
+  if [[ ${_stream_display} != "${_seat_display}" ]]; then
+    log::info "Disabling ${_stream_display}"
+    kscreen-doctor output."${_stream_display}".disable
+  fi
+fi
     fi
   }
 kde::do() {
@@ -491,6 +492,7 @@ kde::do() {
     if [[ "$connector" == "$_stream_display" ]]; then
       continue
     fi
+    #TODO: Check if enabled before setting
     log::info "Disabling $connector"
     log::debug "Attempting 'kscreen-doctor output.${connector}.disable'"
   done 
@@ -500,52 +502,79 @@ function kde::undo() {
 }
 # Format: <who> <what>@<Hz>
 function gnome::set() {
-  gdctl --logical-monitor --primary --monitor "$1" --mode "$2"
+  gdctl set --logical-monitor --primary --monitor "$1" --mode "$2"
 }
 function gnome::do() {
-  log::info "Finish Me"
-  for connector in $(get_connectors_list); do
+  for connector in $(get_enabled_connectors_list); do
+    connector=${connector/HDMI-A-/HDMI-}
     if [[ "$connector" == "$_stream_display" ]]; then
-      continue
-    fi
-    log::info "Disabling $connector"
-    gnome::set "$1" "$2"
+      log::info "Setting '$connector' to '${_client_best_size}@${_client_refresh_rate}'" 
+      gnome::set  "$connector" "${_client_best_size}@${_client_refresh_rate}"
+      #TODO: Properly disable monitors
+      # else
+      # log::info "Disabling $connector"
+      # gdctl --logical-monitor --monitor "$1" --mode "$2"
+    fi 
   done 
 }
 function gnome::undo() {
   log::info "Finish Me"
+  for connector in $(get_enabled_connectors_list); do
+    connector=${connector/HDMI-A-/HDMI-}
+    if [[ "$connector" == "$_stream_display" ]]; then
+      log::info "Setting '$connector' to '${_client_best_size}@${_client_refresh_rate}'"
+      gnome::set  "$connector" "${_client_best_size}@${_client_refresh_rate}"
+    else
+      #FIXME: Restore multi-monitor setup
+      if [[ "$DEFAULT_VRR_MODE" == "automatic" ]] || [[ "$DEFAULT_VRR_MODE" == "enabled" ]]; then
+
+      gnome::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}+vrr"
+    else
+      gnome::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}"
+      fi
+    fi
+  done 
+  gnome::set "$"
 }
 # Main logic {
-if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
-  log::info "KDE"
-elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
-  log::info "GNOME"
-elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
-  log::info "Hyprland"
-else
-  log::info "Entering generic environment methods"
-fi
+mainloop() {
+  log::warning "Program Start"
+  log::warning "Step 1"
+  get_display_configuration
+  log::warning "Step 2"
+  get_closest_mode
+  log::warning "Step 3"
+  if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
+    log::info "KDE"
+    kde::"$1"
+  elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
+    gnome::"$1"
+    # elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
+    # log::info "Hyprland"
+  else
+    log::info "Entering generic environment methods"
+    set_display_mode "$1"
+  fi
 
-get_display_configuration
-get_closest_mode
-set_display_mode "$1"
 
-#FIXME: This will sometimes report 'Assert: PRIMARY:DUMMY == DP-1:DP-2' which
-# is wrong. Should be DP2:HDMI-A-1
-log::info "Assert: PRIMARY:DUMMY == ${_seat_display}:${_stream_display}"
-#FIXME: This often reports the wrong connector i.e. DP-1 instead of DP-2
-log::info "Primary output: ${_seat_display}"
-if [[ ${_stream_display} == "" ]]; then
-  log::info "Could not determine output to stream out!!!"
-  exit 3
-fi
+  #FIXME: This will sometimes report 'Assert: PRIMARY:DUMMY == DP-1:DP-2' which
+  # is wrong. Should be DP2:HDMI-A-1
+  log::info "Assert: PRIMARY:DUMMY == ${_seat_display}:${_stream_display}"
+  #FIXME: This often reports the wrong connector i.e. DP-1 instead of DP-2
+  log::info "Primary output: ${_seat_display}"
+  if [[ ${_stream_display} == "" ]]; then
+    log::info "Could not determine output to stream out!!!"
+    exit 3
+  fi
 
-# Set the preferred monitor for WINE's wayland driver
-WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
-export WAYLANDDRV_PRIMARY_MONITOR
+  # Set the preferred monitor for WINE's wayland driver
+  WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
+  export WAYLANDDRV_PRIMARY_MONITOR
 
-unset _preferred_monitor _session_type _primary _client_height _client_width _refresh
+  unset _preferred_monitor _session_type _primary _client_height _client_width _refresh
+}
 # }
+mainloop "$@"
 # Modeline {
 #	 vi: foldmarker={,} foldmethod=marker foldlevel=0 tabstop=4 filetype=bash
 # }
