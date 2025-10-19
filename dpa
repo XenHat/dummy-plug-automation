@@ -330,7 +330,7 @@ get_closest_mode() {
     tr -s ' ' |
     cut -d ':' -f 2 |
     cut -d ' ' -f 2-3) 2>&1
-  log::info "available modes: $available_modes"
+  log::debug "available modes: $available_modes"
   #FIXME: asking for 1280x800 when only 1280720 is available should return 1280x720
   #FIXME: When more than one resolution is available, thie filtering breaks
   tmp_rez=$(echo "$available_modes" 2>&1 | agrep "${_client_width}x${_client_height}" | uniq)
