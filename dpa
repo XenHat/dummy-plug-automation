@@ -517,7 +517,7 @@ function GNOME::undo() {
   done 
   GNOME::set "$"
 }
-function GNOME::get_displat_configuration() {
+function GNOME::get_display_configuration() {
   _stream_display=$(gdctl show |
     grep 'Primary: yes' -A2 |
     tr -s ' ' |
