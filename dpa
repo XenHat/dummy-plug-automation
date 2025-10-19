@@ -326,11 +326,9 @@ get_closest_refresh_rate() {
   awk -v c=2 -v t="${1}" 'NR==1{d=$c-t;d=d<0?-d:d;v=$c;next}{m=$c-t;m=m<0?-m:m}m<d{d=m;v=$c}END{print v}' <<< "$2"
 }
 get_closest_mode() {
-  #TODO: Re-implement using better logic.
-  #NOTE: For now, it will use a very simple best-effort logic.
   #TODO: Check if this works in all environments, this might make things easier
-  # Work around GNOME using HDMI-1 instead of HDMI-A-1
   log::info "Wanted mode: ${_client_width}x${_client_height} on connector '$_stream_display'"
+  # Work around GNOME using HDMI-1 instead of HDMI-A-1 {
   connector_name="$_stream_display"
   connector_path=$(find /sys/class/drm/ -name "card*-${connector_name}")
   closest_hz=""
@@ -338,6 +336,7 @@ get_closest_mode() {
     connector_name=${_stream_display/HDMI-/HDMI-A-}
     log::warning "connector '$_stream_display' doesn't exist, assuming virtual connector name and converting to likely physical connector name ${connector_name}"
   fi
+  # }
   available_modes=$(sort_resolutions "$(for edid in /sys/class/drm/card*-"${connector_name}"/edid; do edid-decode "$edid" 2>&1 |
     grep -E '(DTD|DMT|IBM|Apple)' 2>&1; done |
     tr -s ' ' |
