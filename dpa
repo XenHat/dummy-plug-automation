@@ -314,31 +314,48 @@ wlr_get_closest_mode() {
   _client_refresh_rate="${closest_hz}"
   log::info "Closest mode for ${_stream_display}: ${_client_best_size}@${_client_refresh_rate}Hz"
 }
+sort_resolutions() {
+  awk '{ split($1, res, "x"); print res[1], res[2], $2, $0 }' <<< "$1" | \
+sort -k1,1n -k2,2n -k3,3n | \
+awk '{ print $4, $5 }'
+}
+get_closest_resolution() {
+  awk -v c=1 -v t="${1}" 'NR==1{d=$c-t;d=d<0?-d:d;v=$c;next}{m=$c-t;m=m<0?-m:m}m<d{d=m;v=$c}END{print v}' <<< "$2"
+}
+get_closest_refresh_rate() {
+  awk -v c=2 -v t="${1}" 'NR==1{d=$c-t;d=d<0?-d:d;v=$c;next}{m=$c-t;m=m<0?-m:m}m<d{d=m;v=$c}END{print v}' <<< "$2"
+}
 get_closest_mode() {
+  #TODO: Re-implement using better logic.
+  #NOTE: For now, it will use a very simple best-effort logic.
   #TODO: Check if this works in all environments, this might make things easier
   # Work around GNOME using HDMI-1 instead of HDMI-A-1
+  log::info "Wanted mode: ${_client_width}x${_client_height} on connector '$_stream_display'"
   connector_name="$_stream_display"
   connector_path=$(find /sys/class/drm/ -name "card*-${connector_name}")
+  closest_hz=""
   if [[ "$_stream_display" =~ "HDMI-" ]] && [[ -z "$connector_path" ]]; then
     connector_name=${_stream_display/HDMI-/HDMI-A-}
     log::warning "connector '$_stream_display' doesn't exist, assuming virtual connector name and converting to likely physical connector name ${connector_name}"
   fi
-  available_modes=$(for edid in /sys/class/drm/card*-"${connector_name}"/edid; do edid-decode "$edid" 2>&1 |
+  available_modes=$(sort_resolutions "$(for edid in /sys/class/drm/card*-"${connector_name}"/edid; do edid-decode "$edid" 2>&1 |
     grep -E '(DTD|DMT|IBM|Apple)' 2>&1; done |
     tr -s ' ' |
     cut -d ':' -f 2 |
-    cut -d ' ' -f 2-3) 2>&1
+    cut -d ' ' -f 2-3)")
   log::debug "available modes: $available_modes"
-  #FIXME: asking for 1280x800 when only 1280720 is available should return 1280x720
-  #FIXME: When more than one resolution is available, thie filtering breaks
-  tmp_rez=$(echo "$available_modes" 2>&1 | agrep "${_client_width}x${_client_height}" | uniq)
-  log::info "closest_rez: '${tmp_rez}'"
-  # split the rez and the mode
-  closest_rez=${tmp_rez% *}
-  closest_hz=${tmp_rez#* }
-  # Fix mismatch between refresh rate precision which causes match failure
-  closest_hz=$(printf '%.3f' "$closest_hz")
-  #NOTE: Sometimes the EDID will not report modes that can be set anyway. Pretend that it is available for now.
+  closest_rez=$(get_closest_resolution "${_client_width}x${_client_height}" "$available_modes")
+  log::info "matching modes: '$closest_rez'"
+  if [[ ! -z "$closest_rez" ]]; then
+    log::info "Wanted refresh rate: '${_client_refresh_rate}'" 
+    # We found the resolution
+    closest_hz=$(get_closest_refresh_rate "${_client_refresh_rate}" "$(grep "$closest_rez" <<< "$available_modes")")
+    log::info "closest refresh rate for '$closest_rez': '$closest_hz'"
+  fi
+  if [[ -z "$closest_rez" ]]; then
+    #NOTE: Sometimes the EDID will not report modes that can be set anyway. Pretend that it is available for now.
+    log::warning "Failed to find a similar mode, attempting to use the requested mode anyway"
+  fi
   if [[ -z "${closest_hz}" ]]; then
     log::error "Failed to get best mode, using requested size"
     _client_best_size="${_client_width}x${_client_height}"
@@ -456,15 +473,15 @@ elif [[ $1 == "undo" ]]; then
       if [[ ${_stream_display} != "${_stream_display}" ]]; then
         wlr-randr --output "${_stream_display}" --off
       fi
-  fi
-done
+      fi
+    done
 
-if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
-  if [[ ${_stream_display} != "${_seat_display}" ]]; then
-    log::info "Disabling ${_stream_display}"
-    kscreen-doctor output."${_stream_display}".disable
-  fi
-fi
+    if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
+      if [[ ${_stream_display} != "${_seat_display}" ]]; then
+        log::info "Disabling ${_stream_display}"
+        kscreen-doctor output."${_stream_display}".disable
+      fi
+    fi
     fi
   }
 function KDE::do() {
@@ -483,19 +500,24 @@ function KDE::undo() {
 }
 # Format: <who> <what>@<Hz>
 function GNOME::set() {
+  log::info "Setting '$1' to '$2'"
   gdctl set --logical-monitor --primary --monitor "$1" --mode "$2"
 }
 function GNOME::do() {
   for connector in $(get_enabled_connectors_list); do
     connector=${connector/HDMI-A-/HDMI-}
+    log::info "connector: '$connector'"
     if [[ "$connector" == "$_stream_display" ]]; then
-      log::info "Setting '$connector' to '${_client_best_size}@${_client_refresh_rate}'" 
-      GNOME::set  "$connector" "${_client_best_size}@${_client_refresh_rate}"
+      adjusted_hz=$(printf '%.3f' "$_client_refresh_rate")
+      log::info "Adjusting refresh rate from '$_client_refresh_rate' to '$adjusted_hz'"
+      GNOME::set  "$connector" "${_client_best_size}@${adjusted_hz}"
       #TODO: Properly disable monitors
       # else
       # log::info "Disabling $connector"
       # gdctl --logical-monitor --monitor "$1" --mode "$2"
-    fi 
+    else
+      log::warning "Uh..... What to do with '$connector'?"
+      fi
   done 
 }
 function GNOME::undo() {
@@ -503,8 +525,10 @@ function GNOME::undo() {
   for connector in $(get_enabled_connectors_list); do
     connector=${connector/HDMI-A-/HDMI-}
     if [[ "$connector" == "$_stream_display" ]]; then
-      log::info "Setting '$connector' to '${_client_best_size}@${_client_refresh_rate}'"
-      GNOME::set  "$connector" "${_client_best_size}@${_client_refresh_rate}"
+      adjusted_hz=$(printf '%.3f' "$_client_refresh_rate")
+      log::info "Adjusting refresh rate from '$_client_refresh_rate' to '$adjusted_hz'"
+      log::info "Setting '$connector' to '${_client_best_size}@${adjusted_hz}'"
+      GNOME::set  "$connector" "${_client_best_size}@${adjusted_hz}"
     else
       #FIXME: Restore multi-monitor setup
       if [[ "$DEFAULT_VRR_MODE" == "automatic" ]] || [[ "$DEFAULT_VRR_MODE" == "enabled" ]]; then
@@ -529,14 +553,14 @@ function GNOME::get_display_configuration() {
 # Main logic {
 mainloop() {
   log::warning "Program Start"
-    "${XDG_CURRENT_DESKTOP}::get_display_configuration"
-    get_closest_mode
-    "${XDG_CURRENT_DESKTOP}::$1"
+  "${XDG_CURRENT_DESKTOP}::get_display_configuration"
+  get_closest_mode
+  "${XDG_CURRENT_DESKTOP}::$1"
   # else
-    # log::info "Entering generic environment methods"
-    # get_display_configuration
-    # get_closest_mode
-    # set_display_mode "$1"
+  # log::info "Entering generic environment methods"
+  # get_display_configuration
+  # get_closest_mode
+  # set_display_mode "$1"
 
   #FIXME: This will sometimes report 'Assert: PRIMARY:DUMMY == DP-1:DP-2' which
   # is wrong. Should be DP2:HDMI-A-1
