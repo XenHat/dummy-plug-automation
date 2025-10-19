@@ -184,16 +184,6 @@ get_display_configuration() {
     log::info "stream display: ${_stream_display}"
     unset p outputs
     #TODO: Make this more readable
-  elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
-    set -x
-    log::info "GNOME Mode"
-    _stream_display=$(gdctl show |
-      grep 'Primary: yes' -A2 |
-      tr -s ' ' |
-      tr -d '└' |
-      tr -d '─' |
-      tail -n1 |
-      cut -d ' ' -f 2)
   else
     # is our preferred display enabled?
     set -x
@@ -410,11 +400,6 @@ set_display_mode() {
         log::info "Disabling ${connector}"
         log::debug "Attempting kscreen-doctor output.${connector}.disable"
         kscreen-doctor output."${connector}".disable
-        # elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
-        # log::info "Handled elsewhere"
-        # Modern GNOME uses gdctl. I have thoughts about this program...
-        # log::info "gdctl set --logical-monitor --primary --monitor \"${_stream_display}\" --mode \"${_client_best_size}@${_client_refresh_rate}\""
-        # gdctl set --logical-monitor --primary --monitor "${_stream_display}" --mode "${_client_best_size}@${_client_refresh_rate}"
       elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
         log::info "Detected Hyprland"
         hyprctl keyword monitor "${_stream_display}","${_client_best_size}"@"${_client_refresh_rate}"
@@ -452,9 +437,6 @@ elif [[ $1 == "undo" ]]; then
         kscreen-doctor output."${connector}.vrrpolicy.${_default_vrr_mode}"
       fi
       kscreen-doctor output."${connector}".enable
-      # elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
-      # log::info "Handled elsewhere"
-      #gdctl set --logical-monitor --primary --monitor "${_stream_display}" --mode "${_seat_resolution}@${_seat_refresh_rate}"
     elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
       log::info "Detected Hyprland"
       if [[ ${_stream_display} != "${_stream_display}" ]]; then
@@ -528,31 +510,41 @@ function gnome::undo() {
       #FIXME: Restore multi-monitor setup
       if [[ "$DEFAULT_VRR_MODE" == "automatic" ]] || [[ "$DEFAULT_VRR_MODE" == "enabled" ]]; then
 
-      gnome::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}+vrr"
-    else
-      gnome::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}"
+        gnome::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}+vrr"
+      else
+        gnome::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}"
       fi
     fi
   done 
   gnome::set "$"
 }
+function gnome::get_displat_configuration() {
+  _stream_display=$(gdctl show |
+    grep 'Primary: yes' -A2 |
+    tr -s ' ' |
+    tr -d '└' |
+    tr -d '─' |
+    tail -n1 |
+    cut -d ' ' -f 2)
+  }
 # Main logic {
 mainloop() {
   log::warning "Program Start"
-  log::warning "Step 1"
-  get_display_configuration
-  log::warning "Step 2"
-  get_closest_mode
-  log::warning "Step 3"
   if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
+    get_display_configuration
+    get_closest_mode
     log::info "KDE"
     kde::"$1"
   elif [[ ${XDG_CURRENT_DESKTOP} == "GNOME" ]]; then
+    gnome::set_display_configuration
+    get_closest_mode
     gnome::"$1"
     # elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
     # log::info "Hyprland"
   else
     log::info "Entering generic environment methods"
+    get_display_configuration
+    get_closest_mode
     set_display_mode "$1"
   fi
 
@@ -572,6 +564,7 @@ mainloop() {
   export WAYLANDDRV_PRIMARY_MONITOR
 
   unset _preferred_monitor _session_type _primary _client_height _client_width _refresh
+  log::warning "Program End"
 }
 # }
 mainloop "$@"
