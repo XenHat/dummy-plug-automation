@@ -318,9 +318,10 @@ get_closest_mode() {
   #TODO: Check if this works in all environments, this might make things easier
   # Work around GNOME using HDMI-1 instead of HDMI-A-1
   connector_name="$_stream_display"
-  if [[ "$_stream_display" =~ "HDMI-" ]] && [[ ! -r "/sys/class/drm/card*-${_stream_display}/edid" ]]; then
-    log::warning "connector '$_stream_display' doesn't exist, assuming virtual connector name and converting to likely physical connector name"
+  connector_path=$(find /sys/class/drm/ -name "card*-${connector_name}")
+  if [[ "$_stream_display" =~ "HDMI-" ]] && [[ -z "$connector_path" ]]; then
     connector_name=${_stream_display/HDMI-/HDMI-A-}
+    log::warning "connector '$_stream_display' doesn't exist, assuming virtual connector name and converting to likely physical connector name ${connector_name}"
   fi
   available_modes=$(for edid in /sys/class/drm/card*-"${connector_name}"/edid; do edid-decode "$edid" 2>&1 |
     grep -E '(DTD|DMT|IBM|Apple)' 2>&1; done |
