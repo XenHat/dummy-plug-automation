@@ -16,6 +16,7 @@
 #TODO: Organize refactor to do as little work as possible;
 #TODO: Find and save available modes as soon as possible
 #TODO: Standardize behavior between desktop environments WRT seat display being present
+#TODO: rework code to not assume the dummy plug is HDMI. There are some DisplayPort ones.
 # Logging {
 # Log facility from
 #
@@ -92,8 +93,8 @@ is_there_other_active_displays=false
 _seat_resolution=${DEFAULT_RESOLUTION:-2560x1440}
 _seat_refresh_rate=${DEFAULT_REFRESH_RATE:-60}
 _default_vrr_mode=${DEFAULT_VRR_MODE:-automatic}
-_seat_display=${DEFAULT_SEAT_DISPLAY:-DP-1}
-_stream_display=${DEFAULT_STREAM_DISPLAY:=HDMI-A-1}
+_new_seat_display=${DEFAULT_new_seat_display:-DP-1}
+_new_stream_display=${DEFAULT_STREAM_DISPLAY:=HDMI-A-1}
 _client_height=${SUNSHINE_CLIENT_HEIGHT:-720}
 _client_width=${SUNSHINE_CLIENT_WIDTH:-1280}
 _client_refresh_rate=${SUNSHINE_CLIENT_FPS:-60}
@@ -103,14 +104,17 @@ log::debug "Global variables at start:
 _seat_resolution=$_seat_resolution
 _seat_refresh_rate=$_seat_refresh_rate
 _default_vrr_mode=$_default_vrr_mode
-_seat_display=$_seat_display
-_stream_display=$_stream_display
+_new_seat_display=$_new_seat_display
+_new_stream_display=$_stream_display
 _client_height=$_client_height
 _client_width=$_client_width
 _client_refresh_rate=$_client_refresh_rate
 _client_best_size=$_client_best_size
 "
 # }
+# Save a copy of some original values for later checks
+_stream_display=$_new_stream_display
+_seat_display=$_new_seat_display
 get_systemd_session_type() {
   # Get systemd session type
   #FIXME: hyprland doesn't show as "active", but as a seat on tty3
@@ -190,7 +194,7 @@ get_display_configuration() {
     fi
     #NOTE: wlr-randr has no concept of primary monitor
     #TODO: Make sure we don't disable the only present display
-    # if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_seat_display" -c) -gt 0 ]]; then
+    # if [[ $(wlr-randr | grep -B5 'Enabled: yes' | grep "$_new_seat_display" -c) -gt 0 ]]; then
     # Check if there is another display enabled beside the dummy plug
     #TODO:
     # shellcheck disable=SC2312
@@ -202,7 +206,7 @@ get_display_configuration() {
       grep -E '(DP|HDMI)-' |
       cut -d ' ' -f 1)
     log::info "Enabled Connectors: ${enabled_connectors}"
-    if [[ $(echo "${wlr_randr}" grep --no-group-separator "${_stream_display}" -A5 | grep 'Enabled: yes' -c) -gt 0 ]]; then
+    if [[ $(echo "${wlr_randr}" grep --no-group-separator "${_new_stream_display}" -A5 | grep 'Enabled: yes' -c) -gt 0 ]]; then
       log::info "Dummy enabled: 1"
     else
       log::info "Dummy enabled: 0"
@@ -213,7 +217,7 @@ get_display_configuration() {
     stream_d=$(echo "${wlr_randr}" |
       grep -B5 'Enabled: yes' --no-group-separator |
       grep -v '^\s' |
-      grep "${_stream_display}" |
+      grep "${_new_stream_display}" |
       cut -d ' ' -f 1)
     log::info "Stream Connector: ${stream_d}"
     if [[ $(echo "${stream_d}" | wc -l) -gt 0 ]]; then
@@ -233,19 +237,19 @@ get_display_configuration() {
   else
     #TODO: properly handle 'disconnected primary'. Not sure HOW this happens, but I'm staring at it right now.
     # shellcheck disable=SC2312
-    _stream_display=$(xrandr |
+    _new_stream_display=$(xrandr |
       grep connected -w |
       awk '{print $1}' |
       head -n1)
   fi
   # shellcheck disable=SC2312
   #FIXME: This is useful but it currently depends on a varaiable that is not set
-  if wlr-randr | grep -A5 "${_stream_display}" | grep -q 'Enabled: no'; then
+  if wlr-randr | grep -A5 "${_new_stream_display}" | grep -q 'Enabled: no'; then
     log::warning "Primary Monitor was not enabled!!!!!!! Force-enabling dummy plug as a cop-out"
     if [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
-      hyprctl keyword monitor "${_stream_display}",enabled
+      hyprctl keyword monitor "${_new_stream_display}",enabled
     else
-      wlr-randr --output "${_stream_display}" --on
+      wlr-randr --output "${_new_stream_display}" --on
     fi
   fi
 }
@@ -285,7 +289,7 @@ wlr_get_closest_mode() {
   _client_height=$(echo "${closest_rez}" | cut -d 'x' -f 2)
   _client_width=$(echo "${closest_rez}" | cut -d 'x' -f 1)
   _client_refresh_rate="${closest_hz}"
-  log::info "Closest mode for ${_stream_display}: ${_client_best_size}@${_client_refresh_rate}Hz"
+  log::info "Closest mode for ${_new_stream_display}: ${_client_best_size}@${_client_refresh_rate}Hz"
 }
 sort_resolutions() {
   awk '{ split($1, res, "x"); print res[1], res[2], $2, $0 }' <<< "$1" | \
@@ -300,14 +304,15 @@ get_closest_refresh_rate() {
 }
 get_closest_mode() {
   #TODO: Check if this works in all environments, this might make things easier
-  log::info "Wanted mode: ${_client_width}x${_client_height} on connector '$_stream_display'"
+  log::info "Wanted mode: ${_client_width}x${_client_height} on connector '$_new_stream_display'"
   # Work around GNOME using HDMI-1 instead of HDMI-A-1 {
-  connector_name="$_stream_display"
+  connector_name="$_new_stream_display"
   connector_path=$(find /sys/class/drm/ -name "card*-${connector_name}")
   closest_hz=""
-  if [[ "$_stream_display" =~ "HDMI-" ]] && [[ -z "$connector_path" ]]; then
-    connector_name=${_stream_display/HDMI-/HDMI-A-}
-    log::warning "connector '$_stream_display' doesn't exist, assuming virtual connector name and converting to likely physical connector name ${connector_name}"
+  if [[ "$_new_stream_display" =~ "HDMI-" ]] && [[ -z "$connector_path" ]]; then
+    # FIXME: This can create bad connector names such as HDMI-A-A-1
+    connector_name=${_new_stream_display/HDMI-/HDMI-A-}
+    log::warning "connector '$_new_stream_display' doesn't exist, assuming virtual connector name and converting to likely physical connector name ${connector_name}"
   fi
   # }
   available_modes=$(sort_resolutions "$(for edid in /sys/class/drm/card*-"${connector_name}"/edid; do edid-decode "$edid" 2>&1 |
@@ -351,142 +356,79 @@ set_display_mode() {
   if [[ $1 == "do" ]]; then
     #NOTE: Enable the stream connector first, otherwise applications will crash if there is no display available
     # FIXME: Do detection first, not each loop iteration
-    # KDE {
-    if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
-      log::info "DO::Detected KDE"
-      log::info "Enabling ${_stream_display}"
-      #FIXME: What to do when there's no output available?
-      #FIXME: asking for 1280x800@60 doesn't work here, but 'kscreen-doctor output.HDMI-A-1.mode.1280x800@60' works fine.
-      #FIXME: we end up with 1280x800@60@60
-      if kscreen-doctor --outputs | grep -c "$_stream_display"; then
-        kscreen-doctor output."${_stream_display}".enable
-        log::info "Setting mode for ${_stream_display} to ${_client_best_size}@${_client_refresh_rate}"
-        log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${_client_best_size}@${_client_refresh_rate}"
-        if kscreen-doctor output."${_stream_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"; then
-          log::info "Success"
-        else
-          log::warning "Failure; screens not changed! re-attempting on current monitor instead."
-          if kscreen-doctor output."${_seat_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"; then
-            log::info "Okay, that worked."
-          else
-            log::warning "Still didn't work... :("
-          fi
-        fi
-      else
-        log::warning "Stream display not available; trying on the current display!"
-
-        #TODO: Deduplicate this and the above
-        if kscreen-doctor output."${_seat_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"; then
-          log::info "Okay, that worked."
-        else
-          log::warning "Still didn't work... :("
-        fi
-      fi
-    fi
-    # }
-    for connector in $(get_connectors_list); do
-      if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
-        #TODO: revisit once KDE has fully native support without Xwayland
-        #TODO: Get the available mode that's the closest to the wanted one
-        if [[ ${connector} == "${_stream_display}" ]]; then
-          continue
-        fi
-        log::info "Disabling ${connector}"
-        log::debug "Attempting kscreen-doctor output.${connector}.disable"
-        kscreen-doctor output."${connector}".disable
-      elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
-        log::info "Detected Hyprland"
-        hyprctl keyword monitor "${_stream_display}","${_client_best_size}"@"${_client_refresh_rate}"
-        # if [[ ${_stream_display} != "$_stream_display" ]]; then
-        # 	hyprctl keyword monitor "${_stream_display}",disable
-        # fi
-      elif [[ ${_session_type} == "wayland" ]]; then
-        log::info "Generic Wayland method"
-        wlr-randr --output "${_stream_display}" --mode "${_client_best_size}@${_client_refresh_rate}" --adaptive-sync enabled
-      else
-        log::info "Generic X11 method"
-        xrandr --output "${_stream_display}" --mode "${_client_best_size}" -r "${_client_refresh_rate}"
-  fi
-done
-elif [[ $1 == "undo" ]]; then
-  #FIXME: very flaky restoration of monitors state if pc is slept then woken up with monitors disabled
-  #TODO: if the only display isn't the stream display, re-enable all displays and turn off the stream display
-  #TODO: make disabling "$_stream_display" optional
-  for connector in $(get_connectors_list); do
-    if [[ ${connector} == "${_stream_display}" ]]; then
-      continue
-    fi
-    #TODO: Move desktop detection out of the loop or something. Reduce repeated code being run every time.
-    # Detecting the environment and performing the display changes should be decoupled.
-    # Perhaps a discrete method for every desktop would be best?
-    # At this point, we are getting into the kind of complexity that is best suited for a compiled language, like
-    # C or C++.
-    if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
-      #TODO: Find preferred mode. it is available through command completion
-      log::info "UNDO::Detected KDE"
-      if [[ ${connector} == "${_seat_display}" ]]; then
-        log::info "Enabling ${connector}"
-        kscreen-doctor output."${connector}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
-        kscreen-doctor output."${connector}.vrrpolicy.${_default_vrr_mode}"
-      fi
-      kscreen-doctor output."${connector}".enable
-    elif [[ ${XDG_CURRENT_DESKTOP} == "Hyprland" ]]; then
-      log::info "Detected Hyprland"
-      if [[ ${_stream_display} != "${_stream_display}" ]]; then
-        #TODO: Save and restore the entry marked as "current"
-        hyprctl keyword monitor "${_stream_display}",preferred
-      fi
-      #TODO: Only disable dummy plug if not the last display
-      # if [[ ${_stream_display} != "$_stream_display" ]]; then
-      # 	hyprctl keyword monitor "${_stream_display}",disable
-      # fi
-    elif [[ ${_session_type} == "wayland" ]]; then
-      wlr-randr --output "${_stream_display}" --mode "${_seat_resolution}"@"${_seat_refresh_rate}" --adaptive-sync "${_default_vrr_mode}"
-      if [[ ${_stream_display} != "${_stream_display}" ]]; then
-        wlr-randr --output "${_stream_display}" --off
-      fi
+    if [[ ${_session_type} == "wayland" ]]; then
+      log::info "Generic Wayland method"
+      wlr-randr --output "${_new_stream_display}" --mode "${_client_best_size}@${_client_refresh_rate}" --adaptive-sync enabled
     else
-      xrandr --output "${_stream_display}" --mode "${_seat_resolution}" -r "${_seat_refresh_rate}"
-      if [[ ${_stream_display} != "${_stream_display}" ]]; then
-        wlr-randr --output "${_stream_display}" --off
+      log::info "Generic X11 method"
+      xrandr --output "${_new_stream_display}" --mode "${_client_best_size}" -r "${_client_refresh_rate}"
+    fi
+  elif [[ $1 == "undo" ]]; then
+    #FIXME: very flaky restoration of monitors state if pc is slept then woken up with monitors disabled
+    #TODO: if the only display isn't the stream display, re-enable all displays and turn off the stream display
+    #TODO: make disabling "$_new_stream_display" optional
+    for connector in $(get_connectors_list); do
+      if [[ ${connector} == "${_new_stream_display}" ]]; then
+        continue
       fi
+      #TODO: Move desktop detection out of the loop or something. Reduce repeated code being run every time.
+      # Detecting the environment and performing the display changes should be decoupled.
+      # Perhaps a discrete method for every desktop would be best?
+      # At this point, we are getting into the kind of complexity that is best suited for a compiled language, like
+      # C or C++.
+      if [[ ${_session_type} == "wayland" ]]; then
+        wlr-randr --output "${_new_stream_display}" --mode "${_seat_resolution}"@"${_seat_refresh_rate}" --adaptive-sync "${_default_vrr_mode}"
+        if [[ ${_new_stream_display} != "${_stream_display}" ]]; then
+          wlr-randr --output "${_new_stream_display}" --off
+        fi
+      else
+        xrandr --output "${_new_stream_display}" --mode "${_seat_resolution}" -r "${_seat_refresh_rate}"
+        if [[ ${_new_stream_display} != "${_stream_display}" ]]; then
+          wlr-randr --output "${_new_stream_display}" --off
+        fi
       fi
     done
 
     if [[ ${XDG_CURRENT_DESKTOP} == "KDE" ]]; then
-      if [[ ${_stream_display} != "${_seat_display}" ]]; then
-        log::info "Disabling ${_stream_display}"
-        kscreen-doctor output."${_stream_display}".disable
+      if [[ ${_new_stream_display} != "${_new_seat_display}" ]]; then
+        log::info "Disabling ${_new_stream_display}"
+        kscreen-doctor output."${_new_stream_display}".disable
       fi
     fi
-    fi
-  }
+  fi
+}
 function KDE::set() {
   kscreen-doctor output."${1}.${2}"
+}
+function KDE::get_closest_mode() {
+  #TODO: Get supported modes via kscreen-doctor instead as it lists and allows more
+  get_closest_mode
 }
 function KDE::do() {
   log::info "Finish Me"
   has_main_display=false
   for connector in $(get_enabled_connectors_list); do
-    if [[ "$connector" == "$_seat_display" ]]; then
+    if [[ "$connector" == "$_new_seat_display" ]]; then
       has_main_display=true
     else
       is_there_other_active_displays=true
     fi
-    if [[ "$connector" == "$_stream_display" ]]; then
+    if [[ "$connector" == "$_new_stream_display" ]]; then
       log::info "Enabling ${connector}"
       #FIXME: What to do when there's no output available?
       #FIXME: asking for 1280x800@60 doesn't work here, but 'kscreen-doctor output.HDMI-A-1.mode.1280x800@60' works fine.
       #FIXME: we end up with 1280x800@60@60
-      if kscreen-doctor --outputs | grep -c "$_stream_display"; then
-        kscreen-doctor output."${_stream_display}".enable
-        log::info "Setting mode for ${_stream_display} to ${_client_best_size}@${_client_refresh_rate}"
-        log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${_client_best_size}@${_client_refresh_rate}"
-        if kscreen-doctor output."${_stream_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"; then
+      if kscreen-doctor --outputs | grep -c "$_new_stream_display"; then
+        kscreen-doctor output."${_new_stream_display}".enable
+        log::info "Setting mode for ${_new_stream_display} to ${_client_best_size}@${_client_refresh_rate}"
+        log::info "Adjusting refresh rate format"
+        adjusted_hz=$(printf '%.2f' "$_client_refresh_rate")
+        log::info "Attempting kscreen-doctor output.${_new_stream_display}.mode.${_client_best_size}@${adjusted_hz}"
+        if kscreen-doctor output."${_new_stream_display}".mode."${_client_best_size}"@"${adjusted_hz}"; then
           log::info "Success"
         else
           log::warning "Failure; screens not changed! re-attempting on current monitor instead."
-          if kscreen-doctor output."${_seat_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"; then
+          if kscreen-doctor output."${_new_seat_display}".mode."${_client_best_size}"@"${adjusted_hz}"; then
             log::info "Okay, that worked."
           else
             log::warning "Still didn't work... :("
@@ -496,7 +438,7 @@ function KDE::do() {
         log::warning "Stream display not available; trying on the current display!"
 
         #TODO: Deduplicate this and the above
-        if kscreen-doctor output."${_seat_display}".mode."${_client_best_size}"@"${_client_refresh_rate}"; then
+        if kscreen-doctor output."${_new_seat_display}".mode."${_client_best_size}"@"${adjusted_hz}"; then
           log::info "Okay, that worked."
         else
           log::warning "Still didn't work... :("
@@ -514,7 +456,7 @@ function KDE::undo() {
   log::info "Finish Me"
   has_main_display=false
   for connector in $(get_connectors_list); do
-    if [[ ${connector} == "${_stream_display}" ]]; then
+    if [[ ${connector} == "${_new_stream_display}" ]]; then
       continue
     fi
     #TODO: Move desktop detection out of the loop or something. Reduce repeated code being run every time.
@@ -523,7 +465,7 @@ function KDE::undo() {
     # At this point, we are getting into the kind of complexity that is best suited for a compiled language, like
     # C or C++.
     #TODO: Find preferred mode. it is available through command completion
-    if [[ ${connector} == "${_seat_display}" ]]; then
+    if [[ ${connector} == "${_new_seat_display}" ]]; then
       log::info "Enabling ${connector}"
       kscreen-doctor output."${connector}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
       kscreen-doctor output."${connector}.vrrpolicy.${_default_vrr_mode}"
@@ -532,9 +474,9 @@ function KDE::undo() {
   done
 
   # Disable stream output last
-  if [[ ${_stream_display} != "${_seat_display}" ]]; then
-    log::info "Disabling ${_stream_display}"
-    kscreen-doctor output."${_stream_display}".disable
+  if [[ ${_new_stream_display} != "${_new_seat_display}" ]]; then
+    log::info "Disabling ${_new_stream_display}"
+    kscreen-doctor output."${_new_stream_display}".disable
   fi
 
 }
@@ -556,9 +498,9 @@ function KDE::get_display_configuration() {
     head -n1 |
     cut -d ' ' -f 3)
   log::info "primary display: ${p}"
-  _seat_display=${p}
+  _new_seat_display=${p}
   # shellcheck disable=SC2312
-  log::info "stream display: ${_stream_display}"
+  log::info "stream display: ${_new_stream_display}"
   unset p outputs
 }
 # Format: <who> <what>@<Hz>
@@ -566,11 +508,14 @@ function GNOME::set() {
   log::info "Setting '$1' to '$2'"
   gdctl set --logical-monitor --primary --monitor "$1" --mode "$2"
 }
+function GNOME::get_closest_mode() {
+  get_closest_mode
+}
 function GNOME::do() {
   for connector in $(get_enabled_connectors_list); do
     connector=${connector/HDMI-A-/HDMI-}
     log::info "connector: '$connector'"
-    if [[ "$connector" == "$_stream_display" ]]; then
+    if [[ "$connector" == "$_new_stream_display" ]]; then
       adjusted_hz=$(printf '%.3f' "$_client_refresh_rate")
       log::info "Adjusting refresh rate from '$_client_refresh_rate' to '$adjusted_hz'"
       GNOME::set  "$connector" "${_client_best_size}@${adjusted_hz}"
@@ -587,7 +532,7 @@ function GNOME::undo() {
   log::info "Finish Me"
   for connector in $(get_enabled_connectors_list); do
     connector=${connector/HDMI-A-/HDMI-}
-    if [[ "$connector" == "$_stream_display" ]]; then
+    if [[ "$connector" == "$_new_stream_display" ]]; then
       adjusted_hz=$(printf '%.3f' "$_client_refresh_rate")
       log::info "Adjusting refresh rate from '$_client_refresh_rate' to '$adjusted_hz'"
       log::info "Setting '$connector' to '${_client_best_size}@${adjusted_hz}'"
@@ -605,7 +550,7 @@ function GNOME::undo() {
   GNOME::set "$"
 }
 function GNOME::get_display_configuration() {
-  _stream_display=$(gdctl show |
+  _new_stream_display=$(gdctl show |
     grep 'Primary: yes' -A2 |
     tr -s ' ' |
     tr -d '└' |
@@ -616,27 +561,31 @@ function GNOME::get_display_configuration() {
 # Main logic {
 mainloop() {
   log::warning "Program Start"
-  "${XDG_CURRENT_DESKTOP}::get_display_configuration"
-  get_closest_mode
-  "${XDG_CURRENT_DESKTOP}::$1"
-  # else
-  # log::info "Entering generic environment methods"
-  # get_display_configuration
-  # get_closest_mode
-  # set_display_mode "$1"
-
+  case "$XDG_CURRENT_DESKTOP" in
+    "GNOME"|"KDE")
+      "${XDG_CURRENT_DESKTOP}::get_display_configuration"
+      "$XDG_CURRENT_DESKTOP}::get_closest_mode"
+      "${XDG_CURRENT_DESKTOP}::$1"
+      ;;
+    *)
+      log::info "Entering generic environment methods"
+      get_display_configuration
+      get_closest_mode
+      set_display_mode "$1"
+      ;;
+  esac
   #FIXME: This will sometimes report 'Assert: PRIMARY:DUMMY == DP-1:DP-2' which
   # is wrong. Should be DP2:HDMI-A-1
-  log::info "Assert: PRIMARY:DUMMY == ${_seat_display}:${_stream_display}"
+  log::info "Assert: PRIMARY:DUMMY == ${_new_seat_display}:${_new_stream_display}"
   #FIXME: This often reports the wrong connector i.e. DP-1 instead of DP-2
-  log::info "Primary output: ${_seat_display}"
-  if [[ ${_stream_display} == "" ]]; then
+  log::info "Primary output: ${_new_seat_display}"
+  if [[ ${_new_stream_display} == "" ]]; then
     log::info "Could not determine output to stream out!!!"
     exit 3
   fi
 
   # Set the preferred monitor for WINE's wayland driver
-  WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
+  WAYLANDDRV_PRIMARY_MONITOR=${_new_stream_display}
   export WAYLANDDRV_PRIMARY_MONITOR
 
   unset _preferred_monitor _session_type _primary _client_height _client_width _refresh
