@@ -422,7 +422,7 @@ function KDE::do() {
         kscreen-doctor output."${_new_stream_display}".enable
         log::info "Setting mode for ${_new_stream_display} to ${_client_best_size}@${_client_refresh_rate}"
         log::info "Adjusting refresh rate format"
-        adjusted_hz=$(printf '%.2f' "$_client_refresh_rate")
+        adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
         log::info "Attempting kscreen-doctor output.${_new_stream_display}.mode.${_client_best_size}@${adjusted_hz}"
         if kscreen-doctor output."${_new_stream_display}".mode."${_client_best_size}"@"${adjusted_hz}"; then
           log::info "Success"
