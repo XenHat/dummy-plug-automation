@@ -564,7 +564,8 @@ mainloop() {
   case "$XDG_CURRENT_DESKTOP" in
     "GNOME"|"KDE")
       "${XDG_CURRENT_DESKTOP}::get_display_configuration"
-      "$XDG_CURRENT_DESKTOP}::get_closest_mode"
+      #"$XDG_CURRENT_DESKTOP}::get_closest_mode"
+      get_closest_mode
       "${XDG_CURRENT_DESKTOP}::$1"
       ;;
     *)
