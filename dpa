@@ -410,12 +410,11 @@ function KDE::do() {
   log::info "Finish Me"
   has_main_display=false
   for connector in $(get_enabled_connectors_list); do
+    log::info "Processing connector '$connector'"
     if [[ "$connector" == "$_new_seat_display" ]]; then
+      log::info "Primary display is enabled, leaving resolution alone"
       has_main_display=true
-    else
-      is_there_other_active_displays=true
-    fi
-    if [[ "$connector" == "$_new_stream_display" ]]; then
+    elif [[ "$connector" == "$_new_stream_display" ]]; then
       log::info "Enabling ${connector}"
       #FIXME: What to do when there's no output available?
       #FIXME: asking for 1280x800@60 doesn't work here, but 'kscreen-doctor output.HDMI-A-1.mode.1280x800@60' works fine.
@@ -446,7 +445,11 @@ function KDE::do() {
           log::warning "Still didn't work... :("
         fi
       fi
-
+    else
+      # Turn off other monitors
+      is_there_other_active_displays=true
+      log::info "Wound turn off connector '$connector'"
+      #
     fi
     #TODO: Check if enabled before setting
     log::info "Disabling $connector"
@@ -533,22 +536,28 @@ function GNOME::do() {
 }
 function GNOME::undo() {
   log::info "Finish Me"
-  for connector in $(get_enabled_connectors_list); do
+  for connector in $(get_connectors_list); do
+    log::info "Handling connector '$connector'"
     connector=${connector/HDMI-A-/HDMI-}
-    if [[ "$connector" == "$_new_stream_display" ]]; then
-      adjusted_hz=$(printf '%.3f' "$_client_refresh_rate")
-      log::info "Adjusting refresh rate from '$_client_refresh_rate' to '$adjusted_hz'"
-      log::info "Setting '$connector' to '${_client_best_size}@${adjusted_hz}'"
-      GNOME::set  "$connector" "${_client_best_size}@${adjusted_hz}"
+    if [[ "$connector" == "$_seat_display" ]]; then
+      result=$(get_closest_mode "$connector" "${_seat_resolution}" "${_seat_refresh_rate}")
+      adjusted_hz=$(printf '%.3f' "$_seat_refresh_rate")
+      log::info "Adjusting refresh rate from '$_seat_refresh_rate' to '$adjusted_hz'"
+      log::info "Setting '$connector' to '${_seat_resolution}@${adjusted_hz}'"
+      GNOME::set  "$connector" "${_seat_resolution}@${adjusted_hz}"
     else
+      log::warning "Finish implementing this display: '$connector'"
       #FIXME: Restore multi-monitor setup
-      if [[ "$DEFAULT_VRR_MODE" == "automatic" ]] || [[ "$DEFAULT_VRR_MODE" == "enabled" ]]; then
       #FIXME: requires upcoming generic get_closest_mode
+      # GNOME::set $(get_generic_mode "$DEFAULT_RESOLUTION" "$DEFAULT_REFRESH_RATE")
+      # 
+      # if [[ "$DEFAULT_VRR_MODE" == "automatic" ]] || [[ "$DEFAULT_VRR_MODE" == "enabled" ]]; then
 
-        GNOME::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}+vrr"
-      else
-        GNOME::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}"
-      fi
+      # GNOME::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}+vrr"
+      # else
+      #adjusted_hz=$(printf '%.3f' "${DEFAULT_REFRESH_RATE}")
+      # GNOME::set "$connector" "2560x1440@59.951"
+      # fi
     fi
   done 
   GNOME::set "$"
@@ -569,7 +578,7 @@ mainloop() {
     "GNOME"|"KDE")
       "${XDG_CURRENT_DESKTOP}::get_display_configuration"
       #"$XDG_CURRENT_DESKTOP}::get_closest_mode"
-      get_closest_mode
+      # get_closest_mode
       "${XDG_CURRENT_DESKTOP}::$1"
       ;;
     *)
