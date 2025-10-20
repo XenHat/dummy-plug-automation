@@ -17,6 +17,9 @@
 #TODO: Find and save available modes as soon as possible
 #TODO: Standardize behavior between desktop environments WRT seat display being present
 #TODO: rework code to not assume the dummy plug is HDMI. There are some DisplayPort ones.
+#FIXME: Automatic resolution picking is currently broken. Will apply as is.
+log::warning "Automatic resolution picking is currently broken. Stream settings will be applied as-is regardless of monitor support."
+_enable_auto_res_fallback=false
 # Logging {
 # Log facility from
 # https://blog.brujordet.no/post/bash/debugging_bash_like_a_sire/
@@ -303,6 +306,7 @@ get_closest_refresh_rate() {
 }
 #TODO: Modify this function to be more generic and take an input resolution and refresh rate so that we can use the same logic everywhere
 get_closest_mode() {
+  if $_enable_auto_res_fallback; then
   #TODO: Check if this works in all environments, this might make things easier
   log::info "Wanted mode: ${_client_width}x${_client_height} on connector '$_new_stream_display'"
   # Work around GNOME using HDMI-1 instead of HDMI-A-1 {
@@ -348,6 +352,10 @@ get_closest_mode() {
     _client_refresh_rate="${closest_hz}"
     #TODO: Handle case where client wants i.e. 90Hz but only 60Hz is available by using 60Hz
     log::warning "Client wanted '${SUNSHINE_CLIENT_FPS}Hz', using ${_client_refresh_rate}Hz"
+  fi
+else
+  _client_best_size="${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}"
+  _client_refresh_rate="${SUNSHINE_CLIENT_FPS}"
   fi
   log::info "Closest mode: ${_client_best_size}@${_client_refresh_rate}"
   echo "$closest_rez" "$closest_hz"
@@ -411,15 +419,18 @@ function KDE::do() {
   has_main_display=false
   for connector in $(get_enabled_connectors_list); do
     log::info "Processing connector '$connector'"
-    if [[ "$connector" == "$_new_seat_display" ]]; then
-      log::info "Primary display is enabled, leaving resolution alone"
-      has_main_display=true
-    elif [[ "$connector" == "$_new_stream_display" ]]; then
+    #TODO: I forgot the rest of my idea but there was a check for stream == seat involved...
+    # if [[ "$connector" == "$_new_seat_display" ]]; then
+      # log::info "Primary display is enabled, leaving resolution alone"
+      # has_main_display=true
+    if [[ "$connector" == "$_new_stream_display" ]]; then
       log::info "Enabling ${connector}"
       #FIXME: What to do when there's no output available?
       #FIXME: asking for 1280x800@60 doesn't work here, but 'kscreen-doctor output.HDMI-A-1.mode.1280x800@60' works fine.
       #FIXME: we end up with 1280x800@60@60
       if kscreen-doctor --outputs | grep -c "$_new_stream_display"; then
+        get_closest_mode
+
         kscreen-doctor output."${_new_stream_display}".enable
         log::info "Setting mode for ${_new_stream_display} to ${_client_best_size}@${_client_refresh_rate}"
         log::info "Adjusting refresh rate format"
