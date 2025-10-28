@@ -97,7 +97,7 @@ is_there_other_active_displays=false
 _seat_resolution=${DEFAULT_RESOLUTION:-2560x1440}
 _seat_refresh_rate=${DEFAULT_REFRESH_RATE:-60}
 _default_vrr_mode=${DEFAULT_VRR_MODE:-automatic}
-_new_seat_display=${DEFAULT_new_seat_display:-DP-1}
+_new_seat_display=${DEFAULT_SEAT_DISPLAY:=DP-1}
 _new_stream_display=${DEFAULT_STREAM_DISPLAY:=HDMI-A-1}
 _client_height=${SUNSHINE_CLIENT_HEIGHT:-720}
 _client_width=${SUNSHINE_CLIENT_WIDTH:-1280}
