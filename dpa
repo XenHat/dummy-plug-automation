@@ -407,6 +407,29 @@ set_display_mode() {
     fi
   fi
 }
+function KDE::get_display_configuration() {
+  outputs=$(kscreen-doctor -o |
+    sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g")
+  # transform output into lines, remove disabled outputs, and sort by priority,
+  # then return the output to prefer by priority
+  # shellcheck disable=SC2312
+  p=$(echo "${outputs}" |
+    grep -v "Modes" |
+    grep Output -A4 |
+    xargs |
+    sed 's/Output\:/\n/g' |
+    grep -v disabled |
+    awk '{print $6 " " $7 " " $2}' |
+    sed '/^\s*$/d' |
+    sort |
+    head -n1 |
+    cut -d ' ' -f 3)
+  log::info "primary display: ${p}"
+  _new_seat_display=${p}
+  # shellcheck disable=SC2312
+  log::info "stream display: ${_new_stream_display}"
+  unset p outputs
+}
 function KDE::set() {
   kscreen-doctor output."${1}.${2}"
 }
@@ -496,29 +519,15 @@ function KDE::undo() {
   fi
 
 }
-function KDE::get_display_configuration() {
-  outputs=$(kscreen-doctor -o |
-    sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g")
-  # transform output into lines, remove disabled outputs, and sort by priority,
-  # then return the output to prefer by priority
-  # shellcheck disable=SC2312
-  p=$(echo "${outputs}" |
-    grep -v "Modes" |
-    grep Output -A4 |
-    xargs |
-    sed 's/Output\:/\n/g' |
-    grep -v disabled |
-    awk '{print $6 " " $7 " " $2}' |
-    sed '/^\s*$/d' |
-    sort |
-    head -n1 |
-    cut -d ' ' -f 3)
-  log::info "primary display: ${p}"
-  _new_seat_display=${p}
-  # shellcheck disable=SC2312
-  log::info "stream display: ${_new_stream_display}"
-  unset p outputs
-}
+function GNOME::get_display_configuration() {
+  _new_stream_display=$(gdctl show |
+    grep 'Primary: yes' -A2 |
+    tr -s ' ' |
+    tr -d '└' |
+    tr -d '─' |
+    tail -n1 |
+    cut -d ' ' -f 2)
+  }
 # Format: <who> <what>@<Hz>
 function GNOME::set() {
   log::info "Setting '$1' to '$2'"
@@ -573,23 +582,12 @@ function GNOME::undo() {
   done 
   GNOME::set "$"
 }
-function GNOME::get_display_configuration() {
-  _new_stream_display=$(gdctl show |
-    grep 'Primary: yes' -A2 |
-    tr -s ' ' |
-    tr -d '└' |
-    tr -d '─' |
-    tail -n1 |
-    cut -d ' ' -f 2)
-  }
 # Main logic {
 mainloop() {
   log::warning "Program Start"
   case "$XDG_CURRENT_DESKTOP" in
     "GNOME"|"KDE")
       "${XDG_CURRENT_DESKTOP}::get_display_configuration"
-      #"$XDG_CURRENT_DESKTOP}::get_closest_mode"
-      # get_closest_mode
       "${XDG_CURRENT_DESKTOP}::$1"
       ;;
     *)
