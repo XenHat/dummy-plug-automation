@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TODOs and FIXMEs {
 #TODO: Properly label every step, I'm getting lost
 #TODO: re-implement COSMIC
 #TODO: re-implement hyprland
@@ -18,6 +19,7 @@
 #TODO: Standardize behavior between desktop environments WRT seat display being present
 #TODO: rework code to not assume the dummy plug is HDMI. There are some DisplayPort ones.
 #FIXME: Automatic resolution picking is currently broken. Will apply as is.
+# }
 _enable_auto_res_fallback=false
 # Logging {
 # Log facility from
