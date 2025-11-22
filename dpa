@@ -584,11 +584,29 @@ function GNOME::undo() {
   done 
   GNOME::set "$"
 }
+function niri::get_display_configuration() {
+  _stream_resolution=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}
+  _stream_refresh_rate=${SUNSHINE_CLIENT_FPS}
+  log::info "Stream resolution:   $_stream_resolution"
+  log::info "Stream refresh rate: $_stream_refresh_rate"
+}
+function niri::do() {
+
+  log::info "Performing niri logic"
+  _stream_display=$_seat_display
+  wlr-randr --output "${_stream_display}" --mode "${_stream_resolution}"
+}
+function niri::undo() {
+  wlr-randr --output "$_seat_display" --on
+  # wlr-randr --output "$_seat_display" --mode "${DEFAULT_RESOLUTION}"@"${DEFAULT_REFRESH_RATE}"
+  wlr-randr --output "$_seat_display" --mode "${DEFAULT_RESOLUTION}"
+}
 # Main logic {
 mainloop() {
   log::warning "Program Start"
   case "$XDG_CURRENT_DESKTOP" in
     "GNOME"|"KDE")
+    "GNOME"|"KDE"|"niri")
       "${XDG_CURRENT_DESKTOP}::get_display_configuration"
       "${XDG_CURRENT_DESKTOP}::$1"
       ;;
