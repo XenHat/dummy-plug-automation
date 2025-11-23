@@ -595,12 +595,11 @@ function niri::do() {
 
   log::info "Performing niri logic"
   _stream_display=$_seat_display
-  wlr-randr --output "${_stream_display}" --mode "${_stream_resolution}"
+  niri msg output "${_stream_display}" mode "${_stream_resolution}"
 }
 function niri::undo() {
-  wlr-randr --output "$_seat_display" --on
-  # wlr-randr --output "$_seat_display" --mode "${DEFAULT_RESOLUTION}"@"${DEFAULT_REFRESH_RATE}"
-  wlr-randr --output "$_seat_display" --mode "${DEFAULT_RESOLUTION}"
+  niri msg output "${_stream_display}" on
+  niri msg output "${_stream_display}" mode "${DEFAULT_RESOLUTION}"
 }
 # Main logic {
 mainloop() {
