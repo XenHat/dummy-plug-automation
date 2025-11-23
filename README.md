@@ -8,7 +8,7 @@ Automation for remote streaming using a dummy plug on Linux, supporting both Xor
 - [X] KDE5/6
 - [ ] GNOME 48+ *re-write needed*
 - [ ] Hyprland *re-write needed*
-- [X] bspwm *re-write needed*
+- [ ] bspwm *re-write needed*
 - [X] Niri
 - [X] Best effort using xrandr and wlrandr for others
 - [ ] COSMIC (Planned)
