@@ -147,40 +147,31 @@ get_enabled_connectors_list() {
     basename "${edid}" | sed 's/card[0-9]*\-//'
   done
 }
-# }
-# KDE Desktop {
-function KDE::get_display_configuration() {
-  enabled_connectors=$(get_enabled_connectors_list)
-  log::warning "Enabled Connectors: ${#enabled_connectors[@]} ($enabled_connectors)"
-
-  if [[ ${#enabled_connectors[@]} -lt 2 ]]; then
-    _stream_display=${enabled_connectors[0]}
-    _seat_display=${enabled_connectors[0]}
-  fi
-  log::warning "New stream display: $_stream_display"
-  outputs=$(kscreen-doctor --json | jq -r '.outputs[].name' | xargs)
-  log::warning "Displays: $outputs"
-  # transform output into lines, remove disabled outputs, and sort by priority,
-  # then return the output to prefer by priority
-  # shellcheck disable=SC2312
-  if grep "$_seat_display" <<< "$enabled_connectors"; then
+function detect_displays() {
+  mapfile -t enabled_connectors < <(get_enabled_connectors_list)
+  log::warning "Enabled Connectors: ${#enabled_connectors[@]} (${enabled_connectors[*]})"
+  if grep "$_seat_display" <<< "${enabled_connectors[*]}"; then
     log::warning "Seat display '$_seat_display' found"
   else
     log::warning "Seat display'$_seat_display'  NOT found"
   fi
-  if grep "$_stream_display" <<< "$enabled_connectors"; then
+  if grep "$_stream_display" <<< "${enabled_connectors[*]}"; then
     log::warning "Stream display '$_stream_display' found"
   else
     log::warning "Stream display '$_stream_display' NOT found"
   fi
-  if eval "$(kscreen-doctor --json | jq -r '.outputs[] | select(.name == "'"$_seat_display"'") | .enabled')"; then
-    log::warning "Seat display is enabled"
-  fi
-  if eval "$(kscreen-doctor --json | jq -r '.outputs[] | select(.name == "'"$_stream_display"'") | .enabled')"; then
-    log::warning "Stream display is enabled"
+  if [[ ${#enabled_connectors[@]} -lt 2 ]]; then
+  log::warning "Only one display found"
+    _stream_display=${enabled_connectors[0]}
+    _seat_display=${enabled_connectors[0]}
+    log::warning "New stream display: $_stream_display"
   fi
 }
-
+# }
+# KDE Desktop {
+KDE::get_display_configuration() {
+  log::info "unimplemented"
+}
 function KDE::get_closest_mode() {
   #TODO: Get supported modes via kscreen-doctor instead as it lists and allows more
   get_closest_mode
@@ -282,13 +273,6 @@ function GNOME::undo() {
 # }
 # Niri Window Manager {
 function niri::get_display_configuration() {
-  enabled_connectors=$(get_enabled_connectors_list)
-  log::warning "Enabled Connectors: ${#enabled_connectors[@]} ($enabled_connectors)"
-
-  if [[ ${#enabled_connectors[@]} -lt 2 ]]; then
-    _stream_display=${enabled_connectors[0]}
-    _seat_display=${enabled_connectors[0]}
-  fi
   _stream_resolution=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}
   _stream_refresh_rate=${SUNSHINE_CLIENT_FPS}
   log::info "Stream resolution:   $_stream_resolution"
@@ -299,24 +283,24 @@ function niri::do() {
   log::info "Performing niri logic"
   log::info "Setting ${_stream_display} to enabled"
   niri msg output "${_stream_display}" on
-  sleep 2
+  sleep 1
 
   log::info "Setting ${_stream_display} mode to ${_stream_resolution}"
-  log::warning "This tends to crash a lot. If this happens, restart your desktop session."
+  log::warning "This tends to crash a lot, especially when some variables are undefined."
+  log::warning "If this happens, try restarting your session."
   niri msg output "${_stream_display}" mode "${_stream_resolution}"
-  sleep 2
 }
 function niri::undo() {
   niri msg output "${_seat_display}" on
-  sleep 2
+  sleep 1
   niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
-  sleep 2
 }
 # }
 # Main logic {
 mainloop() {
   log::warning "Program Start"
-  log::warning "Automatic resolution picking is currently broken. Stream settings will be applied as-is regardless of monitor support."
+  log::warning "Automatic resolution picking is currently removed."
+  log::warning "Stream settings will be applied as-is."
   # is_dummy_enabled=false
 
   # Print the startup state {
@@ -336,6 +320,7 @@ mainloop() {
 
   case "$XDG_CURRENT_DESKTOP" in
     "GNOME"|"KDE"|"niri")
+      detect_displays
       "${XDG_CURRENT_DESKTOP}::get_display_configuration"
       "${XDG_CURRENT_DESKTOP}::$1"
       ;;
