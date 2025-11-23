@@ -2,7 +2,6 @@
 
 Automation for remote streaming using a dummy plug on Linux, supporting both Xorg/X11 and Wayland.
 
-
 ## Supported Desktop Environments and Window Managers
 
 - [X] KDE5/6
@@ -13,9 +12,7 @@ Automation for remote streaming using a dummy plug on Linux, supporting both Xor
 - [X] Best effort using xrandr and wlrandr for others
 - [ ] COSMIC (Planned)
 
-
-## Usage:w
-
+## Usage
 
 usage: `dpa [do|undo]`
 
@@ -37,5 +34,4 @@ DEFAULT_STREAM_DISPLAY=HDMI-A-1 # the "Stream" monitor to use for streaming, i.e
 DEFAULT_RESOLUTION=2560x1440
 DEFAULT_REFRESH_RATE=240 # The refresh rate to attempt to set when quitting the stream session
 DEFAULT_VRR_MODE=automatic # VRR Mode, A.K.A Freesync/GSync
-```
 ```
