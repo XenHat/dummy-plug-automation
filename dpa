@@ -294,8 +294,8 @@ function niri::do() {
   niri msg output "${_stream_display}" mode "${_stream_resolution}"
 }
 function niri::undo() {
-  niri msg output "${_stream_display}" on
-  niri msg output "${_stream_display}" mode "${DEFAULT_RESOLUTION}"
+  niri msg output "${_seat_display}" on
+  niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
 }
 # }
 # Main logic {
