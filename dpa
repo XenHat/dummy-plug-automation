@@ -83,7 +83,7 @@ function log::error {
 trap 'log::error "[TRAP] An error has occurred"' ERR
 # }
 # Dependencies {
-if ! command -v agrep >/dev/null; then
+if _enable_auto_res_fallback && ! command -v agrep >/dev/null; then
   message="agrep not found, cannot continue"
   log::error "${message}"
   exit 2
