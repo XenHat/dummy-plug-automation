@@ -3,10 +3,10 @@
 #TODO: Properly label every step, I'm getting lost
 #TODO: re-implement COSMIC
 #TODO: re-implement hyprland
+# TODO: re-implement automatic display switching, make it optional first
 #FIXME: Make sure dummy plug is enabled on connect. Seems to fail in Hyprland
 #TODO: test X11 for awesomewm, dwm, etc
 #TODO: NVIDIA and Intel gpus support
-#FIXME: Cannot get the session type while running sunshine as a systemd service somehow
 #TODO: Fetch preferred mode from EDID
 #TODO: Multiple monitors support for saving and resuming modes
 #TODO: Associate settings to serial number
