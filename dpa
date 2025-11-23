@@ -282,6 +282,13 @@ function GNOME::undo() {
 # }
 # Niri Window Manager {
 function niri::get_display_configuration() {
+  enabled_connectors=$(get_enabled_connectors_list)
+  log::warning "Enabled Connectors: ${#enabled_connectors[@]} ($enabled_connectors)"
+
+  if [[ ${#enabled_connectors[@]} -lt 2 ]]; then
+    _stream_display=${enabled_connectors[0]}
+    _seat_display=${enabled_connectors[0]}
+  fi
   _stream_resolution=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}
   _stream_refresh_rate=${SUNSHINE_CLIENT_FPS}
   log::info "Stream resolution:   $_stream_resolution"
