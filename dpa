@@ -605,7 +605,6 @@ function niri::undo() {
 mainloop() {
   log::warning "Program Start"
   case "$XDG_CURRENT_DESKTOP" in
-    "GNOME"|"KDE")
     "GNOME"|"KDE"|"niri")
       "${XDG_CURRENT_DESKTOP}::get_display_configuration"
       "${XDG_CURRENT_DESKTOP}::$1"
