@@ -497,7 +497,8 @@ function KDE::undo() {
   log::info "Finish Me"
   has_main_display=false
   for connector in $(get_connectors_list); do
-    if [[ ${connector} == "${_new_stream_display}" ]]; then
+    if [[ ${connector} == "${_stream_display}" ]] && [[ "${_stream_display}" != "${_seat_display}" ]]; then
+      log::info "Skipping over ${connector}"
       continue
     fi
     #TODO: Move desktop detection out of the loop or something. Reduce repeated code being run every time.
