@@ -1,17 +1,17 @@
-[ ] Properly label every step, I'm getting lost
-[ ] re-implement COSMIC
-[ ] re-implement hyprland
-[ ] re-implement automatic display switching, make it optional first
-[ ] test X11 for awesomewm, dwm, etc
-[ ] NVIDIA and Intel gpus support
-[ ] Fetch preferred mode from EDID
-[ ] Multiple monitors support for saving and resuming modes
-[ ] Associate settings to serial number
-[ ] Add niri support using `niri msg output <OUTPUT> <command>`
-[ ] Save the current VRR mode if it exists to a file to restore it later
-[ ] Organize refactor to do as little work as possible;
-[ ] Find and save available modes as soon as possible
-[ ] Standardize behavior between desktop environments WRT seat display being present
-[ ] rework code to not assume the dummy plug is HDMI. There are some DisplayPort ones.
-[ ] Get supported modes via kscreen-doctor instead as it lists and allows more
-[ ] Properly disable monitors
+ - [ ] Properly label every step, I'm getting lost
+ - [ ] re-implement COSMIC
+ - [ ] re-implement hyprland
+ - [ ] re-implement automatic display switching, make it optional first
+ - [ ] test X11 for awesomewm, dwm, etc
+ - [ ] NVIDIA and Intel gpus support
+ - [ ] Fetch preferred mode from EDID
+ - [ ] Multiple monitors support for saving and resuming modes
+ - [ ] Associate settings to serial number
+ - [ ] Add niri support using `niri msg output <OUTPUT> <command>`
+ - [ ] Save the current VRR mode if it exists to a file to restore it later
+ - [ ] Organize refactor to do as little work as possible;
+ - [ ] Find and save available modes as soon as possible
+ - [ ] Standardize behavior between desktop environments WRT seat display being present
+ - [ ] rework code to not assume the dummy plug is HDMI. There are some DisplayPort ones.
+ - [ ] Get supported modes via kscreen-doctor instead as it lists and allows more
+ - [ ] Properly disable monitors
