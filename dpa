@@ -299,8 +299,7 @@ function niri::undo() {
 # Main logic {
 mainloop() {
   log::warning "Program Start"
-  log::warning "Automatic resolution picking is currently removed."
-  log::warning "Stream settings will be applied as-is."
+  log::warning "Automatic resolution picking is currently removed; Stream settings will be applied as-is."
   # is_dummy_enabled=false
 
   # Print the startup state {
@@ -314,6 +313,8 @@ mainloop() {
   _client_width=$_client_width
   _client_refresh_rate=$_client_refresh_rate
   _client_best_size=$_client_best_size
+  XDG_CURRENT_DESKTOP=$_XDG_CURENT_DESKTOP
+  XDG_SESSION_DESKTOP=$_XDG_SESSION_DESKTOP
   "
   # }
 
@@ -324,11 +325,15 @@ mainloop() {
       "${XDG_CURRENT_DESKTOP}::get_display_configuration"
       "${XDG_CURRENT_DESKTOP}::$1"
       ;;
+    "")
+      log::warning "Environment not set, automation probably won't work"
+      ;;
     *)
       log::info "Entering generic environment methods"
-      get_display_configuration
-      get_closest_mode
-      set_display_mode "$1"
+      #get_display_configuration
+      #get_closest_mode
+      #set_display_mode "$1"
+      log::warning "Unimplemented desktop environment '$XDG_CURRENT_DESKTOP'"
       ;;
   esac
   #FIXME: This will sometimes report 'Assert: PRIMARY:DUMMY == DP-1:DP-2' which
