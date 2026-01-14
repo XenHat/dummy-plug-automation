@@ -27,7 +27,8 @@ _enable_auto_res_fallback=false
 # https://blog.brujordet.no/post/bash/debugging_bash_like_a_sire/
 LOG_LEVEL=${LOG_LEVEL:-1}
 function log::_write_log {
-  local timestamp file function_name log_level
+  # local timestamp file function_name log_level
+  local function_name log_level
   log_level=$1
   shift
 
@@ -91,7 +92,7 @@ if _enable_auto_res_fallback && ! command -v agrep >/dev/null; then
 fi
 # }
 # Global Variables {
-is_there_other_active_displays=false
+# is_there_other_active_displays=false
 _seat_resolution=${DEFAULT_RESOLUTION:-2560x1440}
 _seat_refresh_rate=${DEFAULT_REFRESH_RATE:-60}
 _default_vrr_mode=${DEFAULT_VRR_MODE:-automatic}
@@ -161,16 +162,17 @@ function detect_displays() {
     log::warning "Stream display '$_stream_display' NOT found"
   fi
   if [[ ${#enabled_connectors[@]} -lt 2 ]]; then
-  log::warning "Only one display found"
+    log::warning "Only one display found"
     _stream_display=${enabled_connectors[0]}
     _seat_display=${enabled_connectors[0]}
+    log::warning "New seat display:   $_seat_display"
     log::warning "New stream display: $_stream_display"
   fi
 }
 # }
 # KDE Desktop {
 KDE::get_display_configuration() {
-  log::info "unimplemented"
+  get_display_configuration
 }
 function KDE::get_closest_mode() {
   #TODO: Get supported modes via kscreen-doctor instead as it lists and allows more
@@ -181,11 +183,17 @@ function KDE::do() {
   if [[ "$_stream_display" == "$_seat_display" ]]; then
     adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
     log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
+    # Try resolution at any refresh rate first, then apply refresh rate as a bonus
+    # kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"
     kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
   fi
 }
 function KDE::undo() {
   log::info "Finish Me"
+
+  kscreen-doctor output."${_seat_display}".enable
+  kscreen-doctor output."${_seat_display}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
+  kscreen-doctor output."${_seat_display}.vrrpolicy.${_default_vrr_mode}"
   for connector in $(get_connectors_list); do
     if [[ ${connector} == "${_stream_display}" ]] && [[ "${_stream_display}" != "${_seat_display}" ]]; then
       log::info "Skipping over ${connector}"
@@ -229,7 +237,7 @@ function GNOME::do() {
     connector=${connector/HDMI-A-/HDMI-}
     log::info "connector: '$connector'"
     if [[ "$connector" == "$_stream_display" ]]; then
-      result=$(get_closest_mode "$connector" "${_client_width}x${_client_height}" "${_client_refresh_rate}")
+      # closest_mode=$(get_closest_mode "$connector" "${_client_width}x${_client_height}" "${_client_refresh_rate}")
       adjusted_hz=$(printf '%.3f' "$_client_refresh_rate")
       log::info "Adjusting refresh rate from '$_client_refresh_rate' to '$adjusted_hz'"
       GNOME::set  "$connector" "${_client_best_size}@${adjusted_hz}"
@@ -248,7 +256,7 @@ function GNOME::undo() {
     log::info "Handling connector '$connector'"
     connector=${connector/HDMI-A-/HDMI-}
     if [[ "$connector" == "$_seat_display" ]]; then
-      result=$(get_closest_mode "$connector" "${_seat_resolution}" "${_seat_refresh_rate}")
+      # closest_mode=$(get_closest_mode "$connector" "${_seat_resolution}" "${_seat_refresh_rate}")
       adjusted_hz=$(printf '%.3f' "$_seat_refresh_rate")
       log::info "Adjusting refresh rate from '$_seat_refresh_rate' to '$adjusted_hz'"
       log::info "Setting '$connector' to '${_seat_resolution}@${adjusted_hz}'"
@@ -273,6 +281,9 @@ function GNOME::undo() {
 # }
 # Niri Window Manager {
 function niri::get_display_configuration() {
+ #FIXME: Disabled outputs aren't visible to 'niri msg'
+  # niri msg output "HDMI-A-1" on
+  # niri msg output "$_seat_display" on
   _stream_resolution=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}
   _stream_refresh_rate=${SUNSHINE_CLIENT_FPS}
   log::info "Stream resolution:   $_stream_resolution"
@@ -283,17 +294,23 @@ function niri::do() {
   log::info "Performing niri logic"
   log::info "Setting ${_stream_display} to enabled"
   niri msg output "${_stream_display}" on
-  sleep 1
-
   log::info "Setting ${_stream_display} mode to ${_stream_resolution}"
   log::warning "This tends to crash a lot, especially when some variables are undefined."
   log::warning "If this happens, try restarting your session."
   niri msg output "${_stream_display}" mode "${_stream_resolution}"
+  if [[ "$_seat_display" != "$_stream_display" ]]; then
+    log::warning "Disabling stream display"
+    niri msg output "${_seat_display}" off
+  fi
 }
 function niri::undo() {
   niri msg output "${_seat_display}" on
-  sleep 1
   niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
+ 
+  if [[ "$_seat_display" != "$_stream_display" ]]; then
+    niri msg output "${_stream_display}" off
+  fi
+
 }
 # }
 # Main logic {
@@ -323,17 +340,20 @@ mainloop() {
     "GNOME"|"KDE"|"niri")
       detect_displays
       "${XDG_CURRENT_DESKTOP}::get_display_configuration"
+      "${XDG_CURENT_DESKTOP}::get_closest_mode"
       "${XDG_CURRENT_DESKTOP}::$1"
       ;;
-    "")
-      log::warning "Environment not set, automation probably won't work"
-      ;;
     *)
-      log::info "Entering generic environment methods"
-      #get_display_configuration
-      #get_closest_mode
-      #set_display_mode "$1"
+      if [[ -n "$XDG_CURRENT_DESKTOP" ]]; then
       log::warning "Unimplemented desktop environment '$XDG_CURRENT_DESKTOP'"
+      else
+        log::warning "XDG_CURRENT_DESKTOP is not set!"
+      fi
+      log::info "Entering generic environment methods"
+      detect_displays
+      get_display_configuration
+      get_closest_mode
+      set_display_mode "$1"
       ;;
   esac
   #FIXME: This will sometimes report 'Assert: PRIMARY:DUMMY == DP-1:DP-2' which
