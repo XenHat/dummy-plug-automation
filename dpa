@@ -187,6 +187,8 @@ function KDE::do() {
     # kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"
     kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
   fi
+  WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
+  export WAYLANDDRV_PRIMARY_MONITOR
 }
 function KDE::undo() {
   log::info "Finish Me"
@@ -212,6 +214,9 @@ function KDE::undo() {
     log::info "Disabling ${_stream_display}"
     kscreen-doctor output."${_stream_display}".disable
   fi
+
+  WAYLANDDRV_PRIMARY_MONITOR=${_seat_display}
+  export WAYLANDDRV_PRIMARY_MONITOR
 }
 # }
 # GNOME Desktop {
@@ -368,8 +373,8 @@ mainloop() {
   fi
 
   # Set the preferred monitor for WINE's wayland driver
-  WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
-  export WAYLANDDRV_PRIMARY_MONITOR
+  # WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
+  # export WAYLANDDRV_PRIMARY_MONITOR
 
   unset _preferred_monitor _session_type _primary _client_height _client_width _refresh
   log::warning "Program End"
