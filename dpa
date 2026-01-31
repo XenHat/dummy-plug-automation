@@ -330,8 +330,8 @@ mainloop() {
   _client_width=$_client_width
   _client_refresh_rate=$_client_refresh_rate
   _client_best_size=$_client_best_size
-  XDG_CURRENT_DESKTOP=$_XDG_CURENT_DESKTOP
-  XDG_SESSION_DESKTOP=$_XDG_SESSION_DESKTOP
+  XDG_CURRENT_DESKTOP=$XDG_CURENT_DESKTOP
+  XDG_SESSION_DESKTOP=$XDG_SESSION_DESKTOP
   "
   # }
 
