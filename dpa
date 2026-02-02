@@ -304,7 +304,7 @@ function niri::do() {
   log::warning "If this happens, try restarting your session."
   niri msg output "${_stream_display}" mode "${_stream_resolution}"
   if [[ "$_seat_display" != "$_stream_display" ]]; then
-    log::warning "Disabling steat display"
+    log::warning "Disabling seat display"
     niri msg output "${_seat_display}" off
   fi
 }
