@@ -302,7 +302,7 @@ function niri::do() {
   log::info "Setting ${_stream_display} mode to ${_stream_resolution}"
   log::warning "This tends to crash a lot, especially when some variables are undefined."
   log::warning "If this happens, try restarting your session."
-  niri msg output "${_stream_display}" mode "${_stream_resolution}"
+  niri msg output "${_stream_display}" custom-mode "${_stream_resolution}@${_stream_refresh_rate}"
   if [[ "$_seat_display" != "$_stream_display" ]]; then
     log::warning "Disabling seat display"
     niri msg output "${_seat_display}" off
