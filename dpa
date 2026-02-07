@@ -309,14 +309,15 @@ function niri::do() {
   fi
 }
 function niri::undo() {
-  log::warning "Enabling seat display"
-  niri msg output "${_seat_display}" on
-  log::warning "Disabling stream display"
-  niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
+  log::warning "Undo command is temporarily disabled for stability purposes"
+  # log::warning "Enabling seat display"
+  # niri msg output "${_seat_display}" on
+  # log::warning "Disabling stream display"
+  # niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
  
-  if [[ "$_seat_display" != "$_stream_display" ]]; then
-    niri msg output "${_stream_display}" off
-  fi
+  # if [[ "$_seat_display" != "$_stream_display" ]]; then
+    # niri msg output "${_stream_display}" off
+  # fi
 
 }
 # }
