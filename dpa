@@ -184,12 +184,17 @@ function KDE::get_closest_mode() {
 }
 function KDE::do() {
   log::info "Finish Me"
-  if [[ "$_stream_display" == "$_seat_display" ]]; then
+    log::info "Enabling ${_stream_display}"
+    kscreen-doctor output."${_stream_display}".enable
     adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
     log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
     # Try resolution at any refresh rate first, then apply refresh rate as a bonus
     # kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"
     kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
+
+  if [[ "$_stream_display" != "$_seat_display" ]]; then
+    log::info "Disabling ${_seat_display}"
+    kscreen-doctor output."${_seat_display}".disable
   fi
   WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
   export WAYLANDDRV_PRIMARY_MONITOR
