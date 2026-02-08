@@ -302,19 +302,22 @@ function niri::do() {
   log::info "Setting ${_stream_display} mode to ${_stream_resolution}"
   log::warning "This tends to crash a lot, especially when some variables are undefined."
   log::warning "If this happens, try restarting your session."
-  niri msg output "${_stream_display}" mode "${_stream_resolution}"
+  niri msg output "${_stream_display}" custom-mode "${_stream_resolution}@${_stream_refresh_rate}"
   if [[ "$_seat_display" != "$_stream_display" ]]; then
-    log::warning "Disabling stream display"
+    log::warning "Disabling seat display"
     niri msg output "${_seat_display}" off
   fi
 }
 function niri::undo() {
-  niri msg output "${_seat_display}" on
-  niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
+  log::warning "Undo command is temporarily disabled for stability purposes"
+  # log::warning "Enabling seat display"
+  # niri msg output "${_seat_display}" on
+  # log::warning "Disabling stream display"
+  # niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
  
-  if [[ "$_seat_display" != "$_stream_display" ]]; then
-    niri msg output "${_stream_display}" off
-  fi
+  # if [[ "$_seat_display" != "$_stream_display" ]]; then
+    # niri msg output "${_stream_display}" off
+  # fi
 
 }
 # }
@@ -335,7 +338,7 @@ mainloop() {
   _client_width=$_client_width
   _client_refresh_rate=$_client_refresh_rate
   _client_best_size=$_client_best_size
-  XDG_CURRENT_DESKTOP=$XDG_CURENT_DESKTOP
+  XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP
   XDG_SESSION_DESKTOP=$XDG_SESSION_DESKTOP
   "
   # }
@@ -345,7 +348,7 @@ mainloop() {
     "GNOME"|"KDE"|"niri")
       detect_displays
       "${XDG_CURRENT_DESKTOP}::get_display_configuration"
-      "${XDG_CURENT_DESKTOP}::get_closest_mode"
+      "${XDG_CURRENT_DESKTOP}::get_closest_mode"
       "${XDG_CURRENT_DESKTOP}::$1"
       ;;
     *)
