@@ -196,8 +196,9 @@ function KDE::do() {
 }
 function KDE::undo() {
   log::info "Finish Me"
-
+  log::info "Enabling ${_seat_display}"
   kscreen-doctor output."${_seat_display}".enable
+  log::info "Switching ${_seat_display} to ${_seat_resolution}@${_seat_refresh_rate}"
   kscreen-doctor output."${_seat_display}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
   kscreen-doctor output."${_seat_display}.vrrpolicy.${_default_vrr_mode}"
   for connector in $(get_connectors_list); do
