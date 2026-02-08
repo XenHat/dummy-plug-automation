@@ -154,29 +154,32 @@ function get_enabled_connectors_list() {
 }
 function detect_displays() {
   mapfile -t enabled_connectors < <(get_enabled_connectors_list)
-  log::warning "Enabled Connectors: ${#enabled_connectors[@]} (${enabled_connectors[*]})"
+  log::info "Enabled Connectors: ${#enabled_connectors[@]} (${enabled_connectors[*]})"
   if grep "$_seat_display" <<< "${enabled_connectors[*]}"; then
-    log::warning "Seat display '$_seat_display' found"
+    log::info "Seat display '$_seat_display' found"
   else
     log::warning "Seat display'$_seat_display'  NOT found"
   fi
   if grep "$_stream_display" <<< "${enabled_connectors[*]}"; then
-    log::warning "Stream display '$_stream_display' found"
+    log::info "Stream display '$_stream_display' found"
   else
     log::warning "Stream display '$_stream_display' NOT found"
   fi
   if [[ ${#enabled_connectors[@]} -lt 2 ]]; then
-    log::warning "Only one display found"
+    log::info "Only one display found"
     _stream_display=${enabled_connectors[0]}
     _seat_display=${enabled_connectors[0]}
-    log::warning "New seat display:   $_seat_display"
-    log::warning "New stream display: $_stream_display"
+    log::info "New seat display:   $_seat_display"
+    log::info "New stream display: $_stream_display"
+  else
+    # if [[ "${_seat_display}" 
+    log::info "More than one connector is enabled"
   fi
 }
 # }
 # KDE Desktop {
 function KDE::get_display_configuration() {
-  get_display_configuration
+  log::info "Unimplemented yet"
 }
 function KDE::get_closest_mode() {
   #TODO: Get supported modes via kscreen-doctor instead as it lists and allows more
@@ -208,7 +211,7 @@ function KDE::undo() {
   kscreen-doctor output."${_seat_display}.vrrpolicy.${_default_vrr_mode}"
   for connector in $(get_connectors_list); do
     if [[ ${connector} == "${_stream_display}" ]] && [[ "${_stream_display}" != "${_seat_display}" ]]; then
-      log::info "Skipping over ${connector}"
+      log::info "Skipping over ${connector} (${connector} == ${_stream_display} and ${_stream_display} != ${_seat_display})"
       continue
     fi
     if [[ ${connector} == "${_seat_display}" ]]; then
@@ -223,6 +226,8 @@ function KDE::undo() {
   if [[ ${_stream_display} != "${_seat_display}" ]]; then
     log::info "Disabling ${_stream_display}"
     kscreen-doctor output."${_stream_display}".disable
+  else
+    log::info "Not doing anything else because ${_stream_display} != ${_seat_display}"
   fi
 
   WAYLANDDRV_PRIMARY_MONITOR=${_seat_display}
@@ -276,7 +281,7 @@ function GNOME::undo() {
       log::info "Setting '$connector' to '${_seat_resolution}@${adjusted_hz}'"
       GNOME::set  "$connector" "${_seat_resolution}@${adjusted_hz}"
     else
-      log::warning "Finish implementing this display: '$connector'"
+      log::info "Finish implementing this display: '$connector'"
       #FIXME: Restore multi-monitor setup
       #FIXME: requires upcoming generic get_closest_mode
       # GNOME::set $(get_generic_mode "$DEFAULT_RESOLUTION" "$DEFAULT_REFRESH_RATE")
@@ -309,19 +314,19 @@ function niri::do() {
   log::info "Setting ${_stream_display} to enabled"
   niri msg output "${_stream_display}" on
   log::info "Setting ${_stream_display} mode to ${_stream_resolution}"
-  log::warning "This tends to crash a lot, especially when some variables are undefined."
-  log::warning "If this happens, try restarting your session."
+  log::info "This tends to crash a lot, especially when some variables are undefined."
+  log::info "If this happens, try restarting your session."
   niri msg output "${_stream_display}" custom-mode "${_stream_resolution}@${_stream_refresh_rate}"
   if [[ "$_seat_display" != "$_stream_display" ]]; then
-    log::warning "Disabling seat display"
+    log::info "Disabling seat display"
     niri msg output "${_seat_display}" off
   fi
 }
 function niri::undo() {
-  log::warning "Undo command is temporarily disabled for stability purposes"
-  # log::warning "Enabling seat display"
+  log::info "Undo command is temporarily disabled for stability purposes"
+  # log::info "Enabling seat display"
   # niri msg output "${_seat_display}" on
-  # log::warning "Disabling stream display"
+  # log::info "Disabling stream display"
   # niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
 
   # if [[ "$_seat_display" != "$_stream_display" ]]; then
@@ -332,8 +337,8 @@ function niri::undo() {
 # }
 # Main logic {
 function mainloop() {
-  log::warning "Program Start"
-  log::warning "Automatic resolution picking is currently removed; Stream settings will be applied as-is."
+  log::info "Program Start"
+  log::info "Automatic resolution picking is currently removed; Stream settings will be applied as-is."
   # is_dummy_enabled=false
 
   # Print the startup state {
@@ -383,7 +388,7 @@ function mainloop() {
   # export WAYLANDDRV_PRIMARY_MONITOR
 
   unset _preferred_monitor _session_type _primary _client_height _client_width _refresh
-  log::warning "Program End"
+  log::info "Program End"
 }
 mainloop "$@"
 # }
