@@ -239,7 +239,6 @@ function GNOME::get_display_configuration() {
     tail -n1 |
     cut -d ' ' -f 2)
   }
-# Format: <who> <what>@<Hz>
 function GNOME::set() {
   log::info "Setting '$1' to '$2'"
   gdctl set --logical-monitor --primary --monitor "$1" --mode "$2"
