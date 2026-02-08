@@ -88,7 +88,7 @@ trap 'log::error "[TRAP] An error has occurred"' ERR
 if _enable_auto_res_fallback && ! command -v agrep >/dev/null; then
   message="agrep not found, cannot continue"
   log::error "${message}"
-  exit 2
+  exit 0
 fi
 # }
 # Global Variables {
