@@ -36,12 +36,12 @@ function log::_write_log {
     # timestamp=$(date +'%y.%m.%d %H:%M:%S')
     # file="${BASH_SOURCE[2]##*/}"
     function_name="${FUNCNAME[2]}"
-      logger "dpa::$(printf '%s [%s]: %s\n' \
-        "${log_level}" "${function_name}" "${*}")"
+    logger "dpa::$(printf '%s [%s]: %s\n' \
+      "${log_level}" "${function_name}" "${*}")"
 
-      printf >&2 '%s [%s]: %s\n' \
-        "${log_level}" "${function_name}" "${*}"
-      # ;;
+    printf >&2 '%s [%s]: %s\n' \
+    "${log_level}" "${function_name}" "${*}"
+    # ;;
   fi
 }
 function log::info {
@@ -55,11 +55,11 @@ function log::level_is_active {
   check_level=$1
 
   declare -A log_levels=(
-    [DEBUG]=1
-    [INFO]=2
-    [WARN]=3
-    [ERROR]=4
-  )
+  [DEBUG]=1
+  [INFO]=2
+  [WARN]=3
+  [ERROR]=4
+)
 
   check_level="${log_levels["${check_level}"]}"
   current_level="${log_levels["${LOG_LEVEL}"]}"
@@ -88,7 +88,11 @@ trap 'log::error "[TRAP] An error has occurred"' ERR
 if _enable_auto_res_fallback && ! command -v agrep >/dev/null; then
   message="agrep not found, cannot continue"
   log::error "${message}"
-  exit 2
+  exit 0
+fi
+if ! command -v kscreen-doctor; then
+  log::error "Cannot find kscreen-doctor, automation WILL NOT WORK!"
+  exit 0
 fi
 # }
 # Global Variables {
@@ -104,7 +108,7 @@ _client_refresh_rate=${SUNSHINE_CLIENT_FPS:-60}
 _client_best_size=""
 # }
 # Common functions {
-get_systemd_session_type() {
+function get_systemd_session_type() {
   # Get systemd session type
   #FIXME: hyprland doesn't show as "active", but as a seat on tty3
   # user_sessions=$(loginctl list_sessions | grep "$USER")
@@ -114,10 +118,10 @@ get_systemd_session_type() {
     # shellcheck disable=SC2312
     _session_type=$(
       loginctl 2>/dev/null show-session \
-        "$(awk '/tty/ {print $1}' <(loginctl list-sessions |
+      "$(awk '/tty/ {print $1}' <(loginctl list-sessions |
         grep "$USER" |
         grep -v manager))" -p Type | awk -F= '{print $2}'
-      )
+    )
   fi
 
   if [[ -n $_session_type ]]; then
@@ -135,13 +139,13 @@ get_systemd_session_type() {
   fi
   echo "none"
 }
-get_connectors_list() {
+function get_connectors_list() {
   for edid in /sys/class/drm/card*-*-*/; do
     case ${edid} in *-Writeback-*) continue ;; esac
     basename "${edid}" | sed 's/card[0-9]*\-//'
   done
 }
-get_enabled_connectors_list() {
+function get_enabled_connectors_list() {
   for edid in /sys/class/drm/card*-*-*/; do
     case ${edid} in *-Writeback-*) continue ;; esac
     if [[ "$(< "$edid/enabled")" == "disabled" ]]; then continue; fi
@@ -171,7 +175,7 @@ function detect_displays() {
 }
 # }
 # KDE Desktop {
-KDE::get_display_configuration() {
+function KDE::get_display_configuration() {
   get_display_configuration
 }
 function KDE::get_closest_mode() {
@@ -180,20 +184,26 @@ function KDE::get_closest_mode() {
 }
 function KDE::do() {
   log::info "Finish Me"
-  if [[ "$_stream_display" == "$_seat_display" ]]; then
-    adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
-    log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
-    # Try resolution at any refresh rate first, then apply refresh rate as a bonus
-    # kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"
-    kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
+  log::info "Enabling ${_stream_display}"
+  kscreen-doctor output."${_stream_display}".enable
+  adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
+  log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
+  # Try resolution at any refresh rate first, then apply refresh rate as a bonus
+  # kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"
+  kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
+
+  if [[ "$_stream_display" != "$_seat_display" ]]; then
+    log::info "Disabling ${_seat_display}"
+    kscreen-doctor output."${_seat_display}".disable
   fi
   WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
   export WAYLANDDRV_PRIMARY_MONITOR
 }
 function KDE::undo() {
   log::info "Finish Me"
-
+  log::info "Enabling ${_seat_display}"
   kscreen-doctor output."${_seat_display}".enable
+  log::info "Switching ${_seat_display} to ${_seat_resolution}@${_seat_refresh_rate}"
   kscreen-doctor output."${_seat_display}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
   kscreen-doctor output."${_seat_display}.vrrpolicy.${_default_vrr_mode}"
   for connector in $(get_connectors_list); do
@@ -228,8 +238,7 @@ function GNOME::get_display_configuration() {
     tr -d '─' |
     tail -n1 |
     cut -d ' ' -f 2)
-  }
-# Format: <who> <what>@<Hz>
+}
 function GNOME::set() {
   log::info "Setting '$1' to '$2'"
   gdctl set --logical-monitor --primary --monitor "$1" --mode "$2"
@@ -286,7 +295,7 @@ function GNOME::undo() {
 # }
 # Niri Window Manager {
 function niri::get_display_configuration() {
- #FIXME: Disabled outputs aren't visible to 'niri msg'
+  #FIXME: Disabled outputs aren't visible to 'niri msg'
   # niri msg output "HDMI-A-1" on
   # niri msg output "$_seat_display" on
   _stream_resolution=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}
@@ -314,15 +323,15 @@ function niri::undo() {
   # niri msg output "${_seat_display}" on
   # log::warning "Disabling stream display"
   # niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
- 
+
   # if [[ "$_seat_display" != "$_stream_display" ]]; then
-    # niri msg output "${_stream_display}" off
+  # niri msg output "${_stream_display}" off
   # fi
 
 }
 # }
 # Main logic {
-mainloop() {
+function mainloop() {
   log::warning "Program Start"
   log::warning "Automatic resolution picking is currently removed; Stream settings will be applied as-is."
   # is_dummy_enabled=false
@@ -353,7 +362,7 @@ mainloop() {
       ;;
     *)
       if [[ -n "$XDG_CURRENT_DESKTOP" ]]; then
-      log::warning "Unimplemented desktop environment '$XDG_CURRENT_DESKTOP'"
+        log::warning "Unimplemented desktop environment '$XDG_CURRENT_DESKTOP'"
       else
         log::warning "XDG_CURRENT_DESKTOP is not set!"
       fi
@@ -364,12 +373,6 @@ mainloop() {
       set_display_mode "$1"
       ;;
   esac
-  #FIXME: This will sometimes report 'Assert: PRIMARY:DUMMY == DP-1:DP-2' which
-  # is wrong. Should be DP2:HDMI-A-1
-  # log::info "Assert: PRIMARY:DUMMY == ${_seat_display}:${_stream_display}"
-  #FIXME: This often reports the wrong connector i.e. DP-1 instead of DP-2
-  log::info "Seat display:   ${_seat_display}"
-  log::info "Stream display: ${_stream_display}"
   if [[ ${_stream_display} == "" ]]; then
     log::info "Could not determine output to stream out!!!"
     exit 3
