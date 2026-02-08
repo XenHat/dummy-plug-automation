@@ -108,7 +108,7 @@ _client_refresh_rate=${SUNSHINE_CLIENT_FPS:-60}
 _client_best_size=""
 # }
 # Common functions {
-get_systemd_session_type() {
+function get_systemd_session_type() {
   # Get systemd session type
   #FIXME: hyprland doesn't show as "active", but as a seat on tty3
   # user_sessions=$(loginctl list_sessions | grep "$USER")
@@ -139,13 +139,13 @@ get_systemd_session_type() {
   fi
   echo "none"
 }
-get_connectors_list() {
+function get_connectors_list() {
   for edid in /sys/class/drm/card*-*-*/; do
     case ${edid} in *-Writeback-*) continue ;; esac
     basename "${edid}" | sed 's/card[0-9]*\-//'
   done
 }
-get_enabled_connectors_list() {
+function get_enabled_connectors_list() {
   for edid in /sys/class/drm/card*-*-*/; do
     case ${edid} in *-Writeback-*) continue ;; esac
     if [[ "$(< "$edid/enabled")" == "disabled" ]]; then continue; fi
@@ -175,7 +175,7 @@ function detect_displays() {
 }
 # }
 # KDE Desktop {
-KDE::get_display_configuration() {
+function KDE::get_display_configuration() {
   get_display_configuration
 }
 function KDE::get_closest_mode() {
@@ -331,7 +331,7 @@ function niri::undo() {
 }
 # }
 # Main logic {
-mainloop() {
+function mainloop() {
   log::warning "Program Start"
   log::warning "Automatic resolution picking is currently removed; Stream settings will be applied as-is."
   # is_dummy_enabled=false
