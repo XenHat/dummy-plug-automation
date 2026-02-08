@@ -338,7 +338,7 @@ mainloop() {
   _client_width=$_client_width
   _client_refresh_rate=$_client_refresh_rate
   _client_best_size=$_client_best_size
-  XDG_CURRENT_DESKTOP=$XDG_CURENT_DESKTOP
+  XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP
   XDG_SESSION_DESKTOP=$XDG_SESSION_DESKTOP
   "
   # }
@@ -348,7 +348,7 @@ mainloop() {
     "GNOME"|"KDE"|"niri")
       detect_displays
       "${XDG_CURRENT_DESKTOP}::get_display_configuration"
-      "${XDG_CURENT_DESKTOP}::get_closest_mode"
+      "${XDG_CURRENT_DESKTOP}::get_closest_mode"
       "${XDG_CURRENT_DESKTOP}::$1"
       ;;
     *)
