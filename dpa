@@ -36,12 +36,12 @@ function log::_write_log {
     # timestamp=$(date +'%y.%m.%d %H:%M:%S')
     # file="${BASH_SOURCE[2]##*/}"
     function_name="${FUNCNAME[2]}"
-      logger "dpa::$(printf '%s [%s]: %s\n' \
-        "${log_level}" "${function_name}" "${*}")"
+    logger "dpa::$(printf '%s [%s]: %s\n' \
+      "${log_level}" "${function_name}" "${*}")"
 
-      printf >&2 '%s [%s]: %s\n' \
-        "${log_level}" "${function_name}" "${*}"
-      # ;;
+    printf >&2 '%s [%s]: %s\n' \
+    "${log_level}" "${function_name}" "${*}"
+    # ;;
   fi
 }
 function log::info {
@@ -55,11 +55,11 @@ function log::level_is_active {
   check_level=$1
 
   declare -A log_levels=(
-    [DEBUG]=1
-    [INFO]=2
-    [WARN]=3
-    [ERROR]=4
-  )
+  [DEBUG]=1
+  [INFO]=2
+  [WARN]=3
+  [ERROR]=4
+)
 
   check_level="${log_levels["${check_level}"]}"
   current_level="${log_levels["${LOG_LEVEL}"]}"
@@ -118,10 +118,10 @@ function get_systemd_session_type() {
     # shellcheck disable=SC2312
     _session_type=$(
       loginctl 2>/dev/null show-session \
-        "$(awk '/tty/ {print $1}' <(loginctl list-sessions |
+      "$(awk '/tty/ {print $1}' <(loginctl list-sessions |
         grep "$USER" |
         grep -v manager))" -p Type | awk -F= '{print $2}'
-      )
+    )
   fi
 
   if [[ -n $_session_type ]]; then
@@ -184,13 +184,13 @@ function KDE::get_closest_mode() {
 }
 function KDE::do() {
   log::info "Finish Me"
-    log::info "Enabling ${_stream_display}"
-    kscreen-doctor output."${_stream_display}".enable
-    adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
-    log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
-    # Try resolution at any refresh rate first, then apply refresh rate as a bonus
-    # kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"
-    kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
+  log::info "Enabling ${_stream_display}"
+  kscreen-doctor output."${_stream_display}".enable
+  adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
+  log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
+  # Try resolution at any refresh rate first, then apply refresh rate as a bonus
+  # kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"
+  kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
 
   if [[ "$_stream_display" != "$_seat_display" ]]; then
     log::info "Disabling ${_seat_display}"
@@ -238,7 +238,7 @@ function GNOME::get_display_configuration() {
     tr -d '─' |
     tail -n1 |
     cut -d ' ' -f 2)
-  }
+}
 function GNOME::set() {
   log::info "Setting '$1' to '$2'"
   gdctl set --logical-monitor --primary --monitor "$1" --mode "$2"
@@ -295,7 +295,7 @@ function GNOME::undo() {
 # }
 # Niri Window Manager {
 function niri::get_display_configuration() {
- #FIXME: Disabled outputs aren't visible to 'niri msg'
+  #FIXME: Disabled outputs aren't visible to 'niri msg'
   # niri msg output "HDMI-A-1" on
   # niri msg output "$_seat_display" on
   _stream_resolution=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}
@@ -323,9 +323,9 @@ function niri::undo() {
   # niri msg output "${_seat_display}" on
   # log::warning "Disabling stream display"
   # niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
- 
+
   # if [[ "$_seat_display" != "$_stream_display" ]]; then
-    # niri msg output "${_stream_display}" off
+  # niri msg output "${_stream_display}" off
   # fi
 
 }
@@ -362,7 +362,7 @@ function mainloop() {
       ;;
     *)
       if [[ -n "$XDG_CURRENT_DESKTOP" ]]; then
-      log::warning "Unimplemented desktop environment '$XDG_CURRENT_DESKTOP'"
+        log::warning "Unimplemented desktop environment '$XDG_CURRENT_DESKTOP'"
       else
         log::warning "XDG_CURRENT_DESKTOP is not set!"
       fi
