@@ -90,6 +90,10 @@ if _enable_auto_res_fallback && ! command -v agrep >/dev/null; then
   log::error "${message}"
   exit 0
 fi
+if ! command -v kscreen-doctor; then
+  log::error "Cannot find kscreen-doctor, automation WILL NOT WORK!"
+  exit 0
+fi
 # }
 # Global Variables {
 # is_there_other_active_displays=false
