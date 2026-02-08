@@ -369,12 +369,6 @@ mainloop() {
       set_display_mode "$1"
       ;;
   esac
-  #FIXME: This will sometimes report 'Assert: PRIMARY:DUMMY == DP-1:DP-2' which
-  # is wrong. Should be DP2:HDMI-A-1
-  # log::info "Assert: PRIMARY:DUMMY == ${_seat_display}:${_stream_display}"
-  #FIXME: This often reports the wrong connector i.e. DP-1 instead of DP-2
-  log::info "Seat display:   ${_seat_display}"
-  log::info "Stream display: ${_stream_display}"
   if [[ ${_stream_display} == "" ]]; then
     log::info "Could not determine output to stream out!!!"
     exit 3
