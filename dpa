@@ -181,10 +181,10 @@ function detect_displays() {
 function KDE::get_display_configuration() {
   log::info "Unimplemented yet"
 }
-function KDE::get_closest_mode() {
-  #TODO: Get supported modes via kscreen-doctor instead as it lists and allows more
-  get_closest_mode
-}
+# function KDE::get_closest_mode() {
+#   #TODO: Get supported modes via kscreen-doctor instead as it lists and allows more
+#   get_closest_mode
+# }
 function KDE::do() {
   log::info "Finish Me"
   log::info "Enabling ${_stream_display}"
@@ -360,7 +360,7 @@ function mainloop() {
 
   case "$XDG_CURRENT_DESKTOP" in
     "GNOME"|"KDE"|"niri")
-      detect_displays
+      # detect_displays
       "${XDG_CURRENT_DESKTOP}::get_display_configuration"
       "${XDG_CURRENT_DESKTOP}::get_closest_mode"
       "${XDG_CURRENT_DESKTOP}::$1"
