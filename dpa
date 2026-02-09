@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # TODOs and FIXMEs {
-#TODO: Properly label every step, I'm getting lost
 #TODO: re-implement COSMIC
 #TODO: re-implement hyprland
-# TODO: re-implement automatic display switching, make it optional first
+#TODO: re-implement automatic display switching, make it optional first
 #FIXME: Make sure dummy plug is enabled on connect. Seems to fail in Hyprland
 #TODO: test X11 for awesomewm, dwm, etc
 #TODO: NVIDIA and Intel gpus support
@@ -40,7 +39,7 @@ function log::_write_log {
       "${log_level}" "${function_name}" "${*}")"
 
     printf >&2 '%s [%s]: %s\n' \
-    "${log_level}" "${function_name}" "${*}"
+      "${log_level}" "${function_name}" "${*}"
     # ;;
   fi
 }
@@ -55,11 +54,11 @@ function log::level_is_active {
   check_level=$1
 
   declare -A log_levels=(
-  [DEBUG]=1
-  [INFO]=2
-  [WARN]=3
-  [ERROR]=4
-)
+    [DEBUG]=1
+    [INFO]=2
+    [WARN]=3
+    [ERROR]=4
+  )
 
   check_level="${log_levels["${check_level}"]}"
   current_level="${log_levels["${LOG_LEVEL}"]}"
@@ -118,9 +117,9 @@ function get_systemd_session_type() {
     # shellcheck disable=SC2312
     _session_type=$(
       loginctl 2>/dev/null show-session \
-      "$(awk '/tty/ {print $1}' <(loginctl list-sessions |
-        grep "$USER" |
-        grep -v manager))" -p Type | awk -F= '{print $2}'
+        "$(awk '/tty/ {print $1}' <(loginctl list-sessions |
+          grep "$USER" |
+          grep -v manager))" -p Type | awk -F= '{print $2}'
     )
   fi
 
@@ -148,44 +147,55 @@ function get_connectors_list() {
 function get_enabled_connectors_list() {
   for edid in /sys/class/drm/card*-*-*/; do
     case ${edid} in *-Writeback-*) continue ;; esac
-    if [[ "$(< "$edid/enabled")" == "disabled" ]]; then continue; fi
+    if [[ "$(<"$edid/enabled")" == "disabled" ]]; then continue; fi
     basename "${edid}" | sed 's/card[0-9]*\-//'
   done
 }
+function fallback_to_single_monitor() {
+  _stream_display=${enabled_connectors[0]}
+  _seat_display=${enabled_connectors[0]}
+  log::info "New seat display:   $_seat_display"
+  log::info "New stream display: $_stream_display"
+}
 function detect_displays() {
+  mapfile -t all_connectors < <(get_connectors_list)
   mapfile -t enabled_connectors < <(get_enabled_connectors_list)
-  log::info "Enabled Connectors: ${#enabled_connectors[@]} (${enabled_connectors[*]})"
-  if grep "$_seat_display" <<< "${enabled_connectors[*]}"; then
+  log::info "Existing Connectors: ${#all_connectors[@]} (${all_connectors[*]})"
+  log::info "Active Connectors:   ${#enabled_connectors[@]} (${enabled_connectors[*]})"
+  if grep "$_seat_display" <<<"${enabled_connectors[*]}"; then
     log::info "Seat display '$_seat_display' found"
   else
-    log::warning "Seat display'$_seat_display'  NOT found"
+    log::warning "Seat display'$_seat_display' NOT found"
   fi
-  if grep "$_stream_display" <<< "${enabled_connectors[*]}"; then
+  if grep "$_stream_display" <<<"${enabled_connectors[*]}"; then
     log::info "Stream display '$_stream_display' found"
   else
     log::warning "Stream display '$_stream_display' NOT found"
   fi
   if [[ ${#enabled_connectors[@]} -lt 2 ]]; then
     log::info "Only one display found"
-    _stream_display=${enabled_connectors[0]}
-    _seat_display=${enabled_connectors[0]}
-    log::info "New seat display:   $_seat_display"
-    log::info "New stream display: $_stream_display"
+    fallback_to_single_monitor
   else
-    # if [[ "${_seat_display}" 
     log::info "More than one connector is enabled"
   fi
 }
 # }
 # KDE Desktop {
 function KDE::get_display_configuration() {
-  log::info "Unimplemented yet"
+  if [[ -z "$DEFAULT_STREAM_DISPLAY" ]] || [[ -z "$DEFAULT_SEAT_DISPLAY" ]]; then
+    log::warning "Please set DEFAULT_STREAM_DISPLAY and DEFAULT_SEAT_DISPLAY"
+    log::warning "Automation is a little fragile at the moment"
+  fi
+  if [[ -z "$DISABLE_DISPLAY_AUTODETECT" ]]; then
+    detect_displays
+  fi
 }
-function KDE::get_closest_mode() {
-  #TODO: Get supported modes via kscreen-doctor instead as it lists and allows more
-  get_closest_mode
-}
+# function KDE::get_closest_mode() {
+#   #TODO: Get supported modes via kscreen-doctor instead as it lists and allows more
+#   get_closest_mode
+# }
 function KDE::do() {
+  KDE::get_display_configurations
   log::info "Finish Me"
   log::info "Enabling ${_stream_display}"
   kscreen-doctor output."${_stream_display}".enable
@@ -215,7 +225,7 @@ function KDE::undo() {
       continue
     fi
     if [[ ${connector} == "${_seat_display}" ]]; then
-      log::info "Handling Seat display ${connector}"
+      # log::info "Handling Seat display ${connector}"
       kscreen-doctor output."${connector}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
       kscreen-doctor output."${connector}.vrrpolicy.${_default_vrr_mode}"
     fi
@@ -227,7 +237,7 @@ function KDE::undo() {
     log::info "Disabling ${_stream_display}"
     kscreen-doctor output."${_stream_display}".disable
   else
-    log::info "Not doing anything else because ${_stream_display} != ${_seat_display}"
+    log::info "Not doing anything else because Stream Display isn't different than Seat display (${_stream_display} != ${_seat_display})"
   fi
 
   WAYLANDDRV_PRIMARY_MONITOR=${_seat_display}
@@ -259,7 +269,7 @@ function GNOME::do() {
       # closest_mode=$(get_closest_mode "$connector" "${_client_width}x${_client_height}" "${_client_refresh_rate}")
       adjusted_hz=$(printf '%.3f' "$_client_refresh_rate")
       log::info "Adjusting refresh rate from '$_client_refresh_rate' to '$adjusted_hz'"
-      GNOME::set  "$connector" "${_client_best_size}@${adjusted_hz}"
+      GNOME::set "$connector" "${_client_best_size}@${adjusted_hz}"
       #TODO: Properly disable monitors
       # else
       # log::info "Disabling $connector"
@@ -267,7 +277,7 @@ function GNOME::do() {
     else
       log::warning "Uh..... What to do with '$connector'?"
     fi
-  done 
+  done
 }
 function GNOME::undo() {
   log::info "Finish Me"
@@ -279,13 +289,13 @@ function GNOME::undo() {
       adjusted_hz=$(printf '%.3f' "$_seat_refresh_rate")
       log::info "Adjusting refresh rate from '$_seat_refresh_rate' to '$adjusted_hz'"
       log::info "Setting '$connector' to '${_seat_resolution}@${adjusted_hz}'"
-      GNOME::set  "$connector" "${_seat_resolution}@${adjusted_hz}"
+      GNOME::set "$connector" "${_seat_resolution}@${adjusted_hz}"
     else
       log::info "Finish implementing this display: '$connector'"
       #FIXME: Restore multi-monitor setup
       #FIXME: requires upcoming generic get_closest_mode
       # GNOME::set $(get_generic_mode "$DEFAULT_RESOLUTION" "$DEFAULT_REFRESH_RATE")
-      # 
+      #
       # if [[ "$DEFAULT_VRR_MODE" == "automatic" ]] || [[ "$DEFAULT_VRR_MODE" == "enabled" ]]; then
 
       # GNOME::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}+vrr"
@@ -294,7 +304,7 @@ function GNOME::undo() {
       # GNOME::set "$connector" "2560x1440@59.951"
       # fi
     fi
-  done 
+  done
   GNOME::set "$"
 }
 # }
@@ -303,6 +313,10 @@ function niri::get_display_configuration() {
   #FIXME: Disabled outputs aren't visible to 'niri msg'
   # niri msg output "HDMI-A-1" on
   # niri msg output "$_seat_display" on
+
+  if [[ -z "$DISABLE_DISPLAY_AUTODETECT" ]]; then
+    detect_displays
+  fi
   _stream_resolution=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}
   _stream_refresh_rate=${SUNSHINE_CLIENT_FPS}
   log::info "Stream resolution:   $_stream_resolution"
@@ -351,32 +365,30 @@ function mainloop() {
   _client_height=$_client_height
   _client_width=$_client_width
   _client_refresh_rate=$_client_refresh_rate
-  _client_best_size=$_client_best_size
   XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP
   XDG_SESSION_DESKTOP=$XDG_SESSION_DESKTOP
   "
   # }
 
-
   case "$XDG_CURRENT_DESKTOP" in
-    "GNOME"|"KDE"|"niri")
-      detect_displays
-      "${XDG_CURRENT_DESKTOP}::get_display_configuration"
-      "${XDG_CURRENT_DESKTOP}::get_closest_mode"
-      "${XDG_CURRENT_DESKTOP}::$1"
-      ;;
-    *)
-      if [[ -n "$XDG_CURRENT_DESKTOP" ]]; then
-        log::warning "Unimplemented desktop environment '$XDG_CURRENT_DESKTOP'"
-      else
-        log::warning "XDG_CURRENT_DESKTOP is not set!"
-      fi
-      log::info "Entering generic environment methods"
-      detect_displays
-      get_display_configuration
-      get_closest_mode
-      set_display_mode "$1"
-      ;;
+  "GNOME" | "KDE" | "niri")
+    # detect_displays
+    # "${XDG_CURRENT_DESKTOP}::get_display_configuration"
+    # "${XDG_CURRENT_DESKTOP}::get_closest_mode"
+    "${XDG_CURRENT_DESKTOP}::$1"
+    ;;
+  *)
+    if [[ -n "$XDG_CURRENT_DESKTOP" ]]; then
+      log::warning "Unimplemented desktop environment '$XDG_CURRENT_DESKTOP'"
+    else
+      log::warning "XDG_CURRENT_DESKTOP is not set!"
+    fi
+    log::info "Entering generic environment methods"
+    detect_displays
+    get_display_configuration
+    get_closest_mode
+    set_display_mode "$1"
+    ;;
   esac
   if [[ ${_stream_display} == "" ]]; then
     log::info "Could not determine output to stream out!!!"
@@ -388,10 +400,11 @@ function mainloop() {
   # export WAYLANDDRV_PRIMARY_MONITOR
 
   unset _preferred_monitor _session_type _primary _client_height _client_width _refresh
+  log::info "Reminder: If your client gets a black screen, try rebooting the host"
   log::info "Program End"
 }
 mainloop "$@"
 # }
 # Modeline {
-#	 vi: foldmarker={,} foldmethod=marker foldlevel=0 tabstop=4 filetype=bash
+#	 vi: foldmarker={,} foldmethod=marker foldlevel=1 tabstop=4 filetype=bash
 # }
