@@ -40,7 +40,7 @@ function log::_write_log {
       "${log_level}" "${function_name}" "${*}")"
 
     printf >&2 '%s [%s]: %s\n' \
-    "${log_level}" "${function_name}" "${*}"
+      "${log_level}" "${function_name}" "${*}"
     # ;;
   fi
 }
@@ -55,11 +55,11 @@ function log::level_is_active {
   check_level=$1
 
   declare -A log_levels=(
-  [DEBUG]=1
-  [INFO]=2
-  [WARN]=3
-  [ERROR]=4
-)
+    [DEBUG]=1
+    [INFO]=2
+    [WARN]=3
+    [ERROR]=4
+  )
 
   check_level="${log_levels["${check_level}"]}"
   current_level="${log_levels["${LOG_LEVEL}"]}"
@@ -118,9 +118,9 @@ function get_systemd_session_type() {
     # shellcheck disable=SC2312
     _session_type=$(
       loginctl 2>/dev/null show-session \
-      "$(awk '/tty/ {print $1}' <(loginctl list-sessions |
-        grep "$USER" |
-        grep -v manager))" -p Type | awk -F= '{print $2}'
+        "$(awk '/tty/ {print $1}' <(loginctl list-sessions |
+          grep "$USER" |
+          grep -v manager))" -p Type | awk -F= '{print $2}'
     )
   fi
 
@@ -148,19 +148,19 @@ function get_connectors_list() {
 function get_enabled_connectors_list() {
   for edid in /sys/class/drm/card*-*-*/; do
     case ${edid} in *-Writeback-*) continue ;; esac
-    if [[ "$(< "$edid/enabled")" == "disabled" ]]; then continue; fi
+    if [[ "$(<"$edid/enabled")" == "disabled" ]]; then continue; fi
     basename "${edid}" | sed 's/card[0-9]*\-//'
   done
 }
 function detect_displays() {
   mapfile -t enabled_connectors < <(get_enabled_connectors_list)
   log::info "Enabled Connectors: ${#enabled_connectors[@]} (${enabled_connectors[*]})"
-  if grep "$_seat_display" <<< "${enabled_connectors[*]}"; then
+  if grep "$_seat_display" <<<"${enabled_connectors[*]}"; then
     log::info "Seat display '$_seat_display' found"
   else
     log::warning "Seat display'$_seat_display'  NOT found"
   fi
-  if grep "$_stream_display" <<< "${enabled_connectors[*]}"; then
+  if grep "$_stream_display" <<<"${enabled_connectors[*]}"; then
     log::info "Stream display '$_stream_display' found"
   else
     log::warning "Stream display '$_stream_display' NOT found"
@@ -172,7 +172,7 @@ function detect_displays() {
     log::info "New seat display:   $_seat_display"
     log::info "New stream display: $_stream_display"
   else
-    # if [[ "${_seat_display}" 
+    # if [[ "${_seat_display}"
     log::info "More than one connector is enabled"
   fi
 }
@@ -259,7 +259,7 @@ function GNOME::do() {
       # closest_mode=$(get_closest_mode "$connector" "${_client_width}x${_client_height}" "${_client_refresh_rate}")
       adjusted_hz=$(printf '%.3f' "$_client_refresh_rate")
       log::info "Adjusting refresh rate from '$_client_refresh_rate' to '$adjusted_hz'"
-      GNOME::set  "$connector" "${_client_best_size}@${adjusted_hz}"
+      GNOME::set "$connector" "${_client_best_size}@${adjusted_hz}"
       #TODO: Properly disable monitors
       # else
       # log::info "Disabling $connector"
@@ -267,7 +267,7 @@ function GNOME::do() {
     else
       log::warning "Uh..... What to do with '$connector'?"
     fi
-  done 
+  done
 }
 function GNOME::undo() {
   log::info "Finish Me"
@@ -279,13 +279,13 @@ function GNOME::undo() {
       adjusted_hz=$(printf '%.3f' "$_seat_refresh_rate")
       log::info "Adjusting refresh rate from '$_seat_refresh_rate' to '$adjusted_hz'"
       log::info "Setting '$connector' to '${_seat_resolution}@${adjusted_hz}'"
-      GNOME::set  "$connector" "${_seat_resolution}@${adjusted_hz}"
+      GNOME::set "$connector" "${_seat_resolution}@${adjusted_hz}"
     else
       log::info "Finish implementing this display: '$connector'"
       #FIXME: Restore multi-monitor setup
       #FIXME: requires upcoming generic get_closest_mode
       # GNOME::set $(get_generic_mode "$DEFAULT_RESOLUTION" "$DEFAULT_REFRESH_RATE")
-      # 
+      #
       # if [[ "$DEFAULT_VRR_MODE" == "automatic" ]] || [[ "$DEFAULT_VRR_MODE" == "enabled" ]]; then
 
       # GNOME::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}+vrr"
@@ -294,7 +294,7 @@ function GNOME::undo() {
       # GNOME::set "$connector" "2560x1440@59.951"
       # fi
     fi
-  done 
+  done
   GNOME::set "$"
 }
 # }
@@ -357,26 +357,25 @@ function mainloop() {
   "
   # }
 
-
   case "$XDG_CURRENT_DESKTOP" in
-    "GNOME"|"KDE"|"niri")
-      # detect_displays
-      "${XDG_CURRENT_DESKTOP}::get_display_configuration"
-      "${XDG_CURRENT_DESKTOP}::get_closest_mode"
-      "${XDG_CURRENT_DESKTOP}::$1"
-      ;;
-    *)
-      if [[ -n "$XDG_CURRENT_DESKTOP" ]]; then
-        log::warning "Unimplemented desktop environment '$XDG_CURRENT_DESKTOP'"
-      else
-        log::warning "XDG_CURRENT_DESKTOP is not set!"
-      fi
-      log::info "Entering generic environment methods"
-      detect_displays
-      get_display_configuration
-      get_closest_mode
-      set_display_mode "$1"
-      ;;
+  "GNOME" | "KDE" | "niri")
+    # detect_displays
+    "${XDG_CURRENT_DESKTOP}::get_display_configuration"
+    "${XDG_CURRENT_DESKTOP}::get_closest_mode"
+    "${XDG_CURRENT_DESKTOP}::$1"
+    ;;
+  *)
+    if [[ -n "$XDG_CURRENT_DESKTOP" ]]; then
+      log::warning "Unimplemented desktop environment '$XDG_CURRENT_DESKTOP'"
+    else
+      log::warning "XDG_CURRENT_DESKTOP is not set!"
+    fi
+    log::info "Entering generic environment methods"
+    detect_displays
+    get_display_configuration
+    get_closest_mode
+    set_display_mode "$1"
+    ;;
   esac
   if [[ ${_stream_display} == "" ]]; then
     log::info "Could not determine output to stream out!!!"
