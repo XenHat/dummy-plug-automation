@@ -1,25 +1,4 @@
 #!/usr/bin/env bash
-# TODOs and FIXMEs {
-#TODO: re-implement COSMIC
-#TODO: re-implement hyprland
-#TODO: re-implement automatic display switching, make it optional first
-#FIXME: Make sure dummy plug is enabled on connect. Seems to fail in Hyprland
-#TODO: test X11 for awesomewm, dwm, etc
-#TODO: NVIDIA and Intel gpus support
-#TODO: Fetch preferred mode from EDID
-#TODO: Multiple monitors support for saving and resuming modes
-#TODO: Associate settings to serial number
-#TODO: Add niri support using `niri msg output <OUTPUT> <command>`
-#FIXME: Non-predictable connector name.
-#FIXME: Resolution change is fragile on Hyprland
-#TODO: Save the current VRR mode if it exists to a file to restore it later
-#TODO: Organize refactor to do as little work as possible;
-#TODO: Find and save available modes as soon as possible
-#TODO: Standardize behavior between desktop environments WRT seat display being present
-#TODO: rework code to not assume the dummy plug is HDMI. There are some DisplayPort ones.
-#FIXME: Automatic resolution picking is currently broken. Will apply as is.
-#
-# }
 _enable_auto_res_fallback=false
 # Logging {
 # Log facility from
