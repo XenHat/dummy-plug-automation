@@ -186,10 +186,6 @@ function KDE::get_display_configuration() {
 		detect_displays
 	fi
 }
-# function KDE::get_closest_mode() {
-#   #TODO: Get supported modes via kscreen-doctor instead as it lists and allows more
-#   get_closest_mode
-# }
 function KDE::do() {
 	log::info "Enabling ${_stream_display}"
 	kscreen-doctor output."${_stream_display}".enable
@@ -268,60 +264,62 @@ function GNOME::get_closest_mode() {
 	get_closest_mode
 }
 function GNOME::do() {
+	log::info "Enabling ${_stream_display}"
+	# Note: GNOME gdctl doesn't support explicit enable, handles it during set
+
+	GNOME::get_display_configuration
 	log::info "Configuring ${_stream_display} for streaming"
-	local -r _client_best_size="${_client_width}x${_client_height}"
+	adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
+	local -r client_size="${_client_width}x${_client_height}"
 
-	# Cache enabled connectors to avoid repeated subshell spawning
-	local -a enabled_connectors
-	mapfile -t enabled_connectors < <(get_enabled_connectors_list)
-
-	# Configure stream display
-	for connector in "${enabled_connectors[@]}"; do
-		connector=${connector/HDMI-A-/HDMI-}
-		if [[ $connector == "$_stream_display" ]]; then
-			adjusted_hz=$(printf '%.3f' "$_client_refresh_rate")
-			log::info "Adjusting refresh rate from '$_client_refresh_rate' to '$adjusted_hz'"
-			GNOME::set "$connector" "${_client_best_size}@${adjusted_hz}"
-			break
-		fi
-	done
+	log::info "Setting ${_stream_display} to ${client_size}@${adjusted_hz}"
+	GNOME::set "${_stream_display}" "${client_size}@${adjusted_hz}"
 
 	# Disable all other displays
-	for connector in "${enabled_connectors[@]}"; do
-		connector=${connector/HDMI-A-/HDMI-}
-		if [[ $connector != "$_stream_display" ]]; then
-			log::info "Disabling $connector"
-			# TODO: Implement disable logic for GNOME
-			# gdctl --logical-monitor --monitor "$connector" --remove
+	local -a all_connectors
+	mapfile -t all_connectors < <(get_connectors_list)
+	for connector in "${all_connectors[@]}"; do
+		if [[ ${connector} != "${_stream_display}" ]]; then
+			log::info "Disabling ${connector}"
+			gdctl set --off "${connector}"
 		fi
 	done
+
+	WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
+	export WAYLANDDRV_PRIMARY_MONITOR
 }
 function GNOME::undo() {
-	log::info "Restoring GNOME display configuration to seat display"
-	for connector in $(get_connectors_list); do
-		log::info "Handling connector '$connector'"
-		connector=${connector/HDMI-A-/HDMI-}
-		if [[ $connector == "$_seat_display" ]]; then
-			# closest_mode=$(get_closest_mode "$connector" "${_seat_resolution}" "${_seat_refresh_rate}")
-			adjusted_hz=$(printf '%.3f' "$_seat_refresh_rate")
-			log::info "Adjusting refresh rate from '$_seat_refresh_rate' to '$adjusted_hz'"
-			log::info "Setting '$connector' to '${_seat_resolution}@${adjusted_hz}'"
-			GNOME::set "$connector" "${_seat_resolution}@${adjusted_hz}"
-		else
-			log::info "Finish implementing multi-monitor restoration for display: '$connector'"
-			#FIXME: Restore multi-monitor setup
-			#FIXME: requires upcoming generic get_closest_mode
-			# GNOME::set $(get_generic_mode "$DEFAULT_RESOLUTION" "$DEFAULT_REFRESH_RATE")
-			#
-			# if [[ "$DEFAULT_VRR_MODE" == "automatic" ]] || [[ "$DEFAULT_VRR_MODE" == "enabled" ]]; then
+	log::info "Restoring ${_seat_display} to default configuration"
+	log::info "Enabling ${_seat_display}"
+	adjusted_hz=$(printf '%.0f' "$_seat_refresh_rate")
+	log::info "Switching ${_seat_display} to ${_seat_resolution}@${adjusted_hz}"
+	GNOME::set "${_seat_display}" "${_seat_resolution}@${adjusted_hz}"
 
-			# GNOME::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}+vrr"
-			# else
-			#adjusted_hz=$(printf '%.3f' "${DEFAULT_REFRESH_RATE}")
-			# GNOME::set "$connector" "2560x1440@59.951"
-			# fi
+	# Cache connectors list to avoid repeated subshell spawning
+	local -a all_connectors
+	mapfile -t all_connectors < <(get_connectors_list)
+
+	# Enable and configure other connectors
+	for connector in "${all_connectors[@]}"; do
+		if [[ ${connector} == "${_stream_display}" ]] && [[ ${_stream_display} != "${_seat_display}" ]]; then
+			log::info "Skipping stream display ${connector}"
+			continue
+		fi
+		if [[ ${connector} != "${_seat_display}" ]]; then
+			log::info "Enabling ${connector}"
+			gdctl set --on "${connector}"
 		fi
 	done
+	# Disable stream output last
+	if [[ ${_stream_display} != "${_seat_display}" ]]; then
+		log::info "Disabling ${_stream_display}"
+		gdctl set --off "${_stream_display}"
+	else
+		log::info "Not doing anything else because Stream Display isn't different than Seat display (${_stream_display} != ${_seat_display})"
+	fi
+
+	WAYLANDDRV_PRIMARY_MONITOR=${_seat_display}
+	export WAYLANDDRV_PRIMARY_MONITOR
 }
 # }
 # Niri Window Manager {
@@ -339,37 +337,63 @@ function niri::get_display_configuration() {
 	log::info "Stream refresh rate: $_stream_refresh_rate"
 }
 function niri::do() {
-	log::info "Configuring ${_stream_display} for streaming"
-	log::info "Setting ${_stream_display} to enabled"
+	log::info "Enabling ${_stream_display}"
 	niri msg output "${_stream_display}" on
-	log::info "Setting ${_stream_display} mode to ${_stream_resolution}"
+
+	niri::get_display_configuration
+	log::info "Configuring ${_stream_display} for streaming"
+	log::info "Setting ${_stream_display} mode to ${_stream_resolution}@${_stream_refresh_rate}"
 	log::info "This tends to crash a lot, especially when some variables are undefined."
 	log::info "If this happens, try restarting your session."
 	niri msg output "${_stream_display}" custom-mode "${_stream_resolution}@${_stream_refresh_rate}"
 
 	# Disable all other displays
 	local -a all_connectors
-	mapfile -t all_connectors < <(get_enabled_connectors_list)
+	mapfile -t all_connectors < <(get_connectors_list)
 	for connector in "${all_connectors[@]}"; do
 		if [[ ${connector} != "${_stream_display}" ]]; then
 			log::info "Disabling ${connector}"
 			niri msg output "${connector}" off
 		fi
 	done
+
+	WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
+	export WAYLANDDRV_PRIMARY_MONITOR
 }
 function niri::undo() {
-	log::info "Undo command is temporarily disabled for stability purposes"
-	# log::info "Enabling seat display"
-	# niri msg output "${_seat_display}" on
-	# log::info "Disabling stream display"
-	# niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
+	log::info "Restoring ${_seat_display} to default configuration"
+	log::info "Enabling ${_seat_display}"
+	niri msg output "${_seat_display}" on
+	log::info "Switching ${_seat_display} to ${_seat_resolution}@${_seat_refresh_rate}"
+	niri msg output "${_seat_display}" custom-mode "${_seat_resolution}@${_seat_refresh_rate}"
 
-	# if [[ "$_seat_display" != "$_stream_display" ]]; then
-	# niri msg output "${_stream_display}" off
-	# fi
+	# Cache connectors list to avoid repeated subshell spawning
+	local -a all_connectors
+	mapfile -t all_connectors < <(get_connectors_list)
 
+	# Enable and configure other connectors
+	for connector in "${all_connectors[@]}"; do
+		if [[ ${connector} == "${_stream_display}" ]] && [[ ${_stream_display} != "${_seat_display}" ]]; then
+			log::info "Skipping stream display ${connector}"
+			continue
+		fi
+		if [[ ${connector} != "${_seat_display}" ]]; then
+			log::info "Enabling ${connector}"
+			niri msg output "${connector}" on
+		fi
+	done
+	# Disable stream output last
+	if [[ ${_stream_display} != "${_seat_display}" ]]; then
+		log::info "Disabling ${_stream_display}"
+		niri msg output "${_stream_display}" off
+	else
+		log::info "Not doing anything else because Stream Display isn't different than Seat display (${_stream_display} != ${_seat_display})"
+	fi
+
+	WAYLANDDRV_PRIMARY_MONITOR=${_seat_display}
+	export WAYLANDDRV_PRIMARY_MONITOR
 }
-# }
+
 # Main logic {
 function mainloop() {
 	log::info "Program Start"
