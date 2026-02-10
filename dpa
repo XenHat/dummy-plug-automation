@@ -209,7 +209,7 @@ function KDE::undo() {
   log::info "Switching ${_seat_display} to ${_seat_resolution}@${_seat_refresh_rate}"
   kscreen-doctor output."${_seat_display}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
   kscreen-doctor output."${_seat_display}".hdr."${_default_hdr}" output."${_seat_display}".wcg."${_default_hdr}"
-  kscreen-doctor output."${_seat_display}.vrrpolicy.${_default_vrr_mode}"
+  kscreen-doctor output."${_seat_display}".vrrpolicy.${_default_vrr_mode}
   for connector in $(get_connectors_list); do
     if [[ ${connector} == "${_stream_display}" ]] && [[ "${_stream_display}" != "${_seat_display}" ]]; then
       log::info "Skipping over ${connector} (${connector} == ${_stream_display} and ${_stream_display} != ${_seat_display})"
@@ -218,7 +218,7 @@ function KDE::undo() {
     if [[ ${connector} == "${_seat_display}" ]]; then
       # log::info "Handling Seat display ${connector}"
       kscreen-doctor output."${connector}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
-      kscreen-doctor output."${connector}.vrrpolicy.${_default_vrr_mode}"
+      kscreen-doctor output."${connector}".vrrpolicy.${_default_vrr_mode}
     fi
     log::info "Enabling ${connector}"
     kscreen-doctor output."${connector}".enable
@@ -296,7 +296,6 @@ function GNOME::undo() {
       # fi
     fi
   done
-  GNOME::set "$"
 }
 # }
 # Niri Window Manager {
