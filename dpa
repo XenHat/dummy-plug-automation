@@ -85,8 +85,19 @@ _client_width=${SUNSHINE_CLIENT_WIDTH:-1280}
 _client_refresh_rate=${SUNSHINE_CLIENT_FPS:-60}
 _default_hdr=${DEFAULT_HDR:-disable}
 _client_best_size=""
+# Mark immutable configuration
+readonly _enable_auto_res_fallback
 # }
 # Common functions {
+function contains_display() {
+	local -r needle=$1
+	local display
+	shift
+	for display in "$@"; do
+		[[ $display == "$needle" ]] && return 0
+	done
+	return 1
+}
 function get_systemd_session_type() {
 	# Get systemd session type
 	#FIXME: hyprland doesn't show as "active", but as a seat on tty3
@@ -147,12 +158,12 @@ function detect_displays() {
 	mapfile -t enabled_connectors < <(get_enabled_connectors_list)
 	log::info "Existing Connectors: ${#all_connectors[@]} (${all_connectors[*]})"
 	log::info "Active Connectors:   ${#enabled_connectors[@]} (${enabled_connectors[*]})"
-	if [[ " ${enabled_connectors[*]} " == *" $_seat_display "* ]]; then
+	if contains_display "$_seat_display" "${enabled_connectors[@]}"; then
 		log::info "Seat display '$_seat_display' found"
 	else
 		log::warning "Seat display '$_seat_display' NOT found"
 	fi
-	if [[ " ${enabled_connectors[*]} " == *" $_stream_display "* ]]; then
+	if contains_display "$_stream_display" "${enabled_connectors[@]}"; then
 		log::info "Stream display '$_stream_display' found"
 	else
 		log::warning "Stream display '$_stream_display' NOT found"
@@ -183,24 +194,28 @@ function KDE::do() {
 	KDE::get_display_configuration
 	log::info "Configuring ${_stream_display} for streaming"
 	adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
-	if [[ ${SUNSHINE_CLIENT_HDR} == "true" ]]; then
-		log::info "Enabling HDR for ${_stream_display}"
-		HDR_MODE="enable"
-	else
-		log::info "Disabling HDR for ${_stream_display}"
-		HDR_MODE="disable"
-	fi
+
+	# Determine HDR mode
+	local -r HDR_MODE=$([[ ${SUNSHINE_CLIENT_HDR} == "true" ]] && echo "enable" || echo "disable")
+	log::info "$([ "${SUNSHINE_CLIENT_HDR}" == "true" ] && echo "Enabling" || echo "Disabling") HDR for ${_stream_display}"
+
 	log::info "Enabling ${_stream_display}"
 	kscreen-doctor output."${_stream_display}".enable
 	log::info "Setting ${_stream_display} to ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
 	kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
 	log::info "Configuring HDR/WCG for ${_stream_display}"
-	kscreen-doctor output."${_stream_display}".hdr.${HDR_MODE} output."${_stream_display}".wcg.${HDR_MODE}
+	kscreen-doctor output."${_stream_display}".hdr."${HDR_MODE}" output."${_stream_display}".wcg."${HDR_MODE}"
 
-	if [[ $_stream_display != "$_seat_display" ]]; then
-		log::info "Disabling ${_seat_display}"
-		kscreen-doctor output."${_seat_display}".disable
-	fi
+	# Disable all other displays
+	local -a all_connectors
+	mapfile -t all_connectors < <(get_connectors_list)
+	for connector in "${all_connectors[@]}"; do
+		if [[ ${connector} != "${_stream_display}" ]]; then
+			log::info "Disabling ${connector}"
+			kscreen-doctor output."${connector}".disable
+		fi
+	done
+
 	WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
 	export WAYLANDDRV_PRIMARY_MONITOR
 }
@@ -213,8 +228,12 @@ function KDE::undo() {
 	log::info "Configuring HDR/WCG/VRR for ${_seat_display}"
 	kscreen-doctor output."${_seat_display}".hdr."${_default_hdr}" output."${_seat_display}".wcg."${_default_hdr}" output."${_seat_display}".vrrpolicy."${_default_vrr_mode}"
 
+	# Cache connectors list to avoid repeated subshell spawning
+	local -a all_connectors
+	mapfile -t all_connectors < <(get_connectors_list)
+
 	# Enable and configure other connectors
-	for connector in $(get_connectors_list); do
+	for connector in "${all_connectors[@]}"; do
 		if [[ ${connector} == "${_stream_display}" ]] && [[ ${_stream_display} != "${_seat_display}" ]]; then
 			log::info "Skipping stream display ${connector}"
 			continue
@@ -249,22 +268,30 @@ function GNOME::get_closest_mode() {
 }
 function GNOME::do() {
 	# Set client best size from client dimensions
-	_client_best_size="${_client_width}x${_client_height}"
+	local -r _client_best_size="${_client_width}x${_client_height}"
 
-	for connector in $(get_enabled_connectors_list); do
+	# Cache enabled connectors to avoid repeated subshell spawning
+	local -a enabled_connectors
+	mapfile -t enabled_connectors < <(get_enabled_connectors_list)
+
+	# Configure stream display
+	for connector in "${enabled_connectors[@]}"; do
 		connector=${connector/HDMI-A-/HDMI-}
-		log::info "connector: '$connector'"
 		if [[ $connector == "$_stream_display" ]]; then
-			# closest_mode=$(get_closest_mode "$connector" "${_client_width}x${_client_height}" "${_client_refresh_rate}")
 			adjusted_hz=$(printf '%.3f' "$_client_refresh_rate")
 			log::info "Adjusting refresh rate from '$_client_refresh_rate' to '$adjusted_hz'"
 			GNOME::set "$connector" "${_client_best_size}@${adjusted_hz}"
-			#TODO: Properly disable monitors
-			# else
-			# log::info "Disabling $connector"
-			# gdctl --logical-monitor --monitor "$1" --mode "$2"
-		else
-			log::info "Connector '$connector' is not stream display, skipping"
+			break
+		fi
+	done
+
+	# Disable all other displays
+	for connector in "${enabled_connectors[@]}"; do
+		connector=${connector/HDMI-A-/HDMI-}
+		if [[ $connector != "$_stream_display" ]]; then
+			log::info "Disabling $connector"
+			# TODO: Implement disable logic for GNOME
+			# gdctl --logical-monitor --monitor "$connector" --remove
 		fi
 	done
 }
@@ -311,7 +338,6 @@ function niri::get_display_configuration() {
 	log::info "Stream refresh rate: $_stream_refresh_rate"
 }
 function niri::do() {
-
 	log::info "Performing niri logic"
 	log::info "Setting ${_stream_display} to enabled"
 	niri msg output "${_stream_display}" on
@@ -319,10 +345,16 @@ function niri::do() {
 	log::info "This tends to crash a lot, especially when some variables are undefined."
 	log::info "If this happens, try restarting your session."
 	niri msg output "${_stream_display}" custom-mode "${_stream_resolution}@${_stream_refresh_rate}"
-	if [[ $_seat_display != "$_stream_display" ]]; then
-		log::info "Disabling seat display"
-		niri msg output "${_seat_display}" off
-	fi
+
+	# Disable all other displays
+	local -a all_connectors
+	mapfile -t all_connectors < <(get_enabled_connectors_list)
+	for connector in "${all_connectors[@]}"; do
+		if [[ ${connector} != "${_stream_display}" ]]; then
+			log::info "Disabling ${connector}"
+			niri msg output "${connector}" off
+		fi
+	done
 }
 function niri::undo() {
 	log::info "Undo command is temporarily disabled for stability purposes"
