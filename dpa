@@ -191,6 +191,9 @@ function KDE::get_display_configuration() {
 #   get_closest_mode
 # }
 function KDE::do() {
+	log::info "Enabling ${_stream_display}"
+	kscreen-doctor output."${_stream_display}".enable
+
 	KDE::get_display_configuration
 	log::info "Configuring ${_stream_display} for streaming"
 	adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
@@ -199,8 +202,6 @@ function KDE::do() {
 	local -r HDR_MODE=$([[ ${SUNSHINE_CLIENT_HDR} == "true" ]] && echo "enable" || echo "disable")
 	log::info "$([ "${SUNSHINE_CLIENT_HDR}" == "true" ] && echo "Enabling" || echo "Disabling") HDR for ${_stream_display}"
 
-	log::info "Enabling ${_stream_display}"
-	kscreen-doctor output."${_stream_display}".enable
 	log::info "Setting ${_stream_display} to ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
 	kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
 	log::info "Configuring HDR/WCG for ${_stream_display}"
@@ -267,7 +268,7 @@ function GNOME::get_closest_mode() {
 	get_closest_mode
 }
 function GNOME::do() {
-	# Set client best size from client dimensions
+	log::info "Configuring ${_stream_display} for streaming"
 	local -r _client_best_size="${_client_width}x${_client_height}"
 
 	# Cache enabled connectors to avoid repeated subshell spawning
@@ -338,7 +339,7 @@ function niri::get_display_configuration() {
 	log::info "Stream refresh rate: $_stream_refresh_rate"
 }
 function niri::do() {
-	log::info "Performing niri logic"
+	log::info "Configuring ${_stream_display} for streaming"
 	log::info "Setting ${_stream_display} to enabled"
 	niri msg output "${_stream_display}" on
 	log::info "Setting ${_stream_display} mode to ${_stream_resolution}"
