@@ -137,6 +137,7 @@ function fallback_to_single_monitor() {
   log::info "New stream display: $_stream_display"
 }
 function detect_displays() {
+  log::info "Detecting displays"
   mapfile -t all_connectors < <(get_connectors_list)
   mapfile -t enabled_connectors < <(get_enabled_connectors_list)
   log::info "Existing Connectors: ${#all_connectors[@]} (${all_connectors[*]})"
@@ -165,9 +166,6 @@ function KDE::get_display_configuration() {
     log::warning "Please set DEFAULT_STREAM_DISPLAY and DEFAULT_SEAT_DISPLAY"
     log::warning "Automation is a little fragile at the moment"
   fi
-  if [[ -z "$DISABLE_DISPLAY_AUTODETECT" ]]; then
-    detect_displays
-  fi
 }
 # function KDE::get_closest_mode() {
 #   #TODO: Get supported modes via kscreen-doctor instead as it lists and allows more
@@ -175,6 +173,9 @@ function KDE::get_display_configuration() {
 # }
 function KDE::do() {
   KDE::get_display_configurations
+    if [[ -z "$DISABLE_DISPLAY_AUTODETECT" ]]; then
+    detect_displays
+  fi
   log::info "Finish Me"
   log::info "Enabling ${_stream_display}"
   kscreen-doctor output."${_stream_display}".enable
