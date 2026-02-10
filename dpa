@@ -108,10 +108,10 @@ function get_systemd_session_type() {
 		exit 0
 	else
 		environment=$(env)
-		if grep -qc "WAYLAND_DISPLAY" <<<"$environment"; then
+		if [[ $environment == *"WAYLAND_DISPLAY"* ]]; then
 			echo "wayland"
 			exit 0
-		elif grep -qc "DISPLAY" <<<"$environment"; then
+		elif [[ $environment == *"DISPLAY"* ]]; then
 			echo "x11"
 			exit 0
 		fi
@@ -121,14 +121,18 @@ function get_systemd_session_type() {
 function get_connectors_list() {
 	for edid in /sys/class/drm/card*-*-*/; do
 		case ${edid} in *-Writeback-*) continue ;; esac
-		basename "${edid}" | sed 's/card[0-9]*\-//'
+		edid=${edid%/}        # Remove trailing slash
+		edid=${edid##*/}      # Get basename
+		echo "${edid#card*-}" # Remove card*- prefix using glob pattern
 	done
 }
 function get_enabled_connectors_list() {
 	for edid in /sys/class/drm/card*-*-*/; do
 		case ${edid} in *-Writeback-*) continue ;; esac
 		if [[ "$(<"$edid/enabled")" == "disabled" ]]; then continue; fi
-		basename "${edid}" | sed 's/card[0-9]*\-//'
+		edid=${edid%/}        # Remove trailing slash
+		edid=${edid##*/}      # Get basename
+		echo "${edid#card*-}" # Remove card*- prefix using glob pattern
 	done
 }
 function fallback_to_single_monitor() {
@@ -143,12 +147,12 @@ function detect_displays() {
 	mapfile -t enabled_connectors < <(get_enabled_connectors_list)
 	log::info "Existing Connectors: ${#all_connectors[@]} (${all_connectors[*]})"
 	log::info "Active Connectors:   ${#enabled_connectors[@]} (${enabled_connectors[*]})"
-	if grep "$_seat_display" <<<"${enabled_connectors[*]}"; then
+	if [[ " ${enabled_connectors[*]} " == *" $_seat_display "* ]]; then
 		log::info "Seat display '$_seat_display' found"
 	else
-		log::warning "Seat display'$_seat_display' NOT found"
+		log::warning "Seat display '$_seat_display' NOT found"
 	fi
-	if grep "$_stream_display" <<<"${enabled_connectors[*]}"; then
+	if [[ " ${enabled_connectors[*]} " == *" $_stream_display "* ]]; then
 		log::info "Stream display '$_stream_display' found"
 	else
 		log::warning "Stream display '$_stream_display' NOT found"
@@ -234,13 +238,7 @@ function KDE::undo() {
 # }
 # GNOME Desktop {
 function GNOME::get_display_configuration() {
-	_stream_display=$(gdctl show |
-		grep 'Primary: yes' -A2 |
-		tr -s ' ' |
-		tr -d '└' |
-		tr -d '─' |
-		tail -n1 |
-		cut -d ' ' -f 2)
+	_stream_display=$(gdctl show | awk '/Primary: yes/{getline; getline} {print $NF; exit}')
 }
 function GNOME::set() {
 	log::info "Setting '$1' to '$2'"
