@@ -204,6 +204,8 @@ function KDE::do() {
 	kscreen-doctor output."${_stream_display}".hdr."${HDR_MODE}" output."${_stream_display}".wcg."${HDR_MODE}"
 
 	# Disable all other displays
+	log::info "Waiting before disabling other displays..."
+	sleep 1
 	local -a all_connectors
 	mapfile -t all_connectors < <(get_connectors_list)
 	for connector in "${all_connectors[@]}"; do
@@ -242,6 +244,8 @@ function KDE::undo() {
 	done
 	# Disable stream output last
 	if [[ ${_stream_display} != "${_seat_display}" ]]; then
+		log::info "Waiting before disabling stream display..."
+		sleep 1
 		log::info "Disabling ${_stream_display}"
 		kscreen-doctor output."${_stream_display}".disable
 	else
@@ -276,6 +280,8 @@ function GNOME::do() {
 	GNOME::set "${_stream_display}" "${client_size}@${adjusted_hz}"
 
 	# Disable all other displays
+	log::info "Waiting before disabling other displays..."
+	sleep 1
 	local -a all_connectors
 	mapfile -t all_connectors < <(get_connectors_list)
 	for connector in "${all_connectors[@]}"; do
@@ -312,6 +318,8 @@ function GNOME::undo() {
 	done
 	# Disable stream output last
 	if [[ ${_stream_display} != "${_seat_display}" ]]; then
+		log::info "Waiting before disabling stream display..."
+		sleep 1
 		log::info "Disabling ${_stream_display}"
 		gdctl set --off "${_stream_display}"
 	else
@@ -348,6 +356,8 @@ function niri::do() {
 	niri msg output "${_stream_display}" custom-mode "${_stream_resolution}@${_stream_refresh_rate}"
 
 	# Disable all other displays
+	log::info "Waiting before disabling other displays..."
+	sleep 1
 	local -a all_connectors
 	mapfile -t all_connectors < <(get_connectors_list)
 	for connector in "${all_connectors[@]}"; do
@@ -384,6 +394,8 @@ function niri::undo() {
 	done
 	# Disable stream output last
 	if [[ ${_stream_display} != "${_seat_display}" ]]; then
+		log::info "Waiting before disabling stream display..."
+		sleep 1
 		log::info "Disabling ${_stream_display}"
 		niri msg output "${_stream_display}" off
 	else
