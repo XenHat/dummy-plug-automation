@@ -5,58 +5,58 @@ _enable_auto_res_fallback=false
 # https://blog.brujordet.no/post/bash/debugging_bash_like_a_sire/
 LOG_LEVEL=${LOG_LEVEL:-1}
 function log::_write_log {
-  # local timestamp file function_name log_level
-  local function_name log_level
-  log_level=$1
-  shift
+	# local timestamp file function_name log_level
+	local function_name log_level
+	log_level=$1
+	shift
 
-  if log::level_is_active "${log_level}"; then
-    # timestamp=$(date +'%y.%m.%d %H:%M:%S')
-    # file="${BASH_SOURCE[2]##*/}"
-    function_name="${FUNCNAME[2]}"
-    logger "dpa::$(printf '%s [%s]: %s\n' \
-      "${log_level}" "${function_name}" "${*}")"
+	if log::level_is_active "${log_level}"; then
+		# timestamp=$(date +'%y.%m.%d %H:%M:%S')
+		# file="${BASH_SOURCE[2]##*/}"
+		function_name="${FUNCNAME[2]}"
+		logger "dpa::$(printf '%s [%s]: %s\n' \
+			"${log_level}" "${function_name}" "${*}")"
 
-    printf >&2 '%s [%s]: %s\n' \
-      "${log_level}" "${function_name}" "${*}"
-    # ;;
-  fi
+		printf >&2 '%s [%s]: %s\n' \
+			"${log_level}" "${function_name}" "${*}"
+		# ;;
+	fi
 }
 function log::info {
-  log::_write_log "INFO" "$@"
+	log::_write_log "INFO" "$@"
 }
 function log::warning {
-  log::_write_log "WARN" "$@"
+	log::_write_log "WARN" "$@"
 }
 function log::level_is_active {
-  local check_level current_level
-  check_level=$1
+	local check_level current_level
+	check_level=$1
 
-  declare -A log_levels=(
-    [DEBUG]=1
-    [INFO]=2
-    [WARN]=3
-    [ERROR]=4
-  )
+	declare -A log_levels=(
+		[DEBUG]=1
+		[INFO]=2
+		[WARN]=3
+		[ERROR]=4
+	)
 
-  check_level="${log_levels["${check_level}"]}"
-  current_level="${log_levels["${LOG_LEVEL}"]}"
+	check_level="${log_levels["${check_level}"]}"
+	current_level="${log_levels["${LOG_LEVEL}"]}"
 
-  ((check_level >= current_level))
+	((check_level >= current_level))
 }
 function log::error {
-  log::_write_log "ERROR" "$@"
-  local stack_offset=1
-  printf '%s:\n' 'Stacktrace:' >&2
+	log::_write_log "ERROR" "$@"
+	local stack_offset=1
+	printf '%s:\n' 'Stacktrace:' >&2
 
-  for stack_id in "${!FUNCNAME[@]}"; do
-    if [[ ${stack_offset} -le ${stack_id} ]]; then
-      local source_file="${BASH_SOURCE[${stack_id}]}"
-      local function="${FUNCNAME[${stack_id}]}"
-      local line="${BASH_LINENO[$((stack_id - 1))]}"
-      printf >&2 '\t%s:%s:%s\n' "${source_file}" "${function}" "${line}"
-    fi
-  done
+	for stack_id in "${!FUNCNAME[@]}"; do
+		if [[ ${stack_offset} -le ${stack_id} ]]; then
+			local source_file="${BASH_SOURCE[${stack_id}]}"
+			local function="${FUNCNAME[${stack_id}]}"
+			local line="${BASH_LINENO[$((stack_id - 1))]}"
+			printf >&2 '\t%s:%s:%s\n' "${source_file}" "${function}" "${line}"
+		fi
+	done
 }
 # }
 # Trap errors immediately {
@@ -64,13 +64,13 @@ trap 'log::error "[TRAP] An error has occurred"' ERR
 # }
 # Dependencies {
 if _enable_auto_res_fallback && ! command -v agrep >/dev/null; then
-  message="agrep not found, cannot continue"
-  log::error "${message}"
-  exit 0
+	message="agrep not found, cannot continue"
+	log::error "${message}"
+	exit 0
 fi
 if ! command -v kscreen-doctor; then
-  log::error "Cannot find kscreen-doctor, automation WILL NOT WORK!"
-  exit 0
+	log::error "Cannot find kscreen-doctor, automation WILL NOT WORK!"
+	exit 0
 fi
 # }
 # Global Variables {
@@ -88,262 +88,265 @@ _client_best_size=""
 # }
 # Common functions {
 function get_systemd_session_type() {
-  # Get systemd session type
-  #FIXME: hyprland doesn't show as "active", but as a seat on tty3
-  # user_sessions=$(loginctl list_sessions | grep "$USER")
-  if [[ -n $XDG_SESSION_TYPE ]]; then
-    _session_type="$XDG_SESSION_TYPE"
-  else
-    # shellcheck disable=SC2312
-    _session_type=$(
-      loginctl 2>/dev/null show-session \
-        "$(awk '/tty/ {print $1}' <(loginctl list-sessions |
-          grep "$USER" |
-          grep -v manager))" -p Type | awk -F= '{print $2}'
-    )
-  fi
+	# Get systemd session type
+	#FIXME: hyprland doesn't show as "active", but as a seat on tty3
+	# user_sessions=$(loginctl list_sessions | grep "$USER")
+	if [[ -n $XDG_SESSION_TYPE ]]; then
+		_session_type="$XDG_SESSION_TYPE"
+	else
+		# shellcheck disable=SC2312
+		_session_type=$(
+			loginctl 2>/dev/null show-session \
+				"$(awk '/tty/ {print $1}' <(loginctl list-sessions |
+					grep "$USER" |
+					grep -v manager))" -p Type | awk -F= '{print $2}'
+		)
+	fi
 
-  if [[ -n $_session_type ]]; then
-    echo "$_session_type"
-    exit 0
-  else
-    environment=$(env)
-    if grep -qc "WAYLAND_DISPLAY" <<<"$environment"; then
-      echo "wayland"
-      exit 0
-    elif grep -qc "DISPLAY" <<<"$environment"; then
-      echo "x11"
-      exit 0
-    fi
-  fi
-  echo "none"
+	if [[ -n $_session_type ]]; then
+		echo "$_session_type"
+		exit 0
+	else
+		environment=$(env)
+		if grep -qc "WAYLAND_DISPLAY" <<<"$environment"; then
+			echo "wayland"
+			exit 0
+		elif grep -qc "DISPLAY" <<<"$environment"; then
+			echo "x11"
+			exit 0
+		fi
+	fi
+	echo "none"
 }
 function get_connectors_list() {
-  for edid in /sys/class/drm/card*-*-*/; do
-    case ${edid} in *-Writeback-*) continue ;; esac
-    basename "${edid}" | sed 's/card[0-9]*\-//'
-  done
+	for edid in /sys/class/drm/card*-*-*/; do
+		case ${edid} in *-Writeback-*) continue ;; esac
+		basename "${edid}" | sed 's/card[0-9]*\-//'
+	done
 }
 function get_enabled_connectors_list() {
-  for edid in /sys/class/drm/card*-*-*/; do
-    case ${edid} in *-Writeback-*) continue ;; esac
-    if [[ "$(<"$edid/enabled")" == "disabled" ]]; then continue; fi
-    basename "${edid}" | sed 's/card[0-9]*\-//'
-  done
+	for edid in /sys/class/drm/card*-*-*/; do
+		case ${edid} in *-Writeback-*) continue ;; esac
+		if [[ "$(<"$edid/enabled")" == "disabled" ]]; then continue; fi
+		basename "${edid}" | sed 's/card[0-9]*\-//'
+	done
 }
 function fallback_to_single_monitor() {
-  _stream_display=${enabled_connectors[0]}
-  _seat_display=${enabled_connectors[0]}
-  log::info "New seat display:   $_seat_display"
-  log::info "New stream display: $_stream_display"
+	_stream_display=${enabled_connectors[0]}
+	_seat_display=${enabled_connectors[0]}
+	log::info "New seat display:   $_seat_display"
+	log::info "New stream display: $_stream_display"
 }
 function detect_displays() {
-  log::info "Detecting displays"
-  mapfile -t all_connectors < <(get_connectors_list)
-  mapfile -t enabled_connectors < <(get_enabled_connectors_list)
-  log::info "Existing Connectors: ${#all_connectors[@]} (${all_connectors[*]})"
-  log::info "Active Connectors:   ${#enabled_connectors[@]} (${enabled_connectors[*]})"
-  if grep "$_seat_display" <<<"${enabled_connectors[*]}"; then
-    log::info "Seat display '$_seat_display' found"
-  else
-    log::warning "Seat display'$_seat_display' NOT found"
-  fi
-  if grep "$_stream_display" <<<"${enabled_connectors[*]}"; then
-    log::info "Stream display '$_stream_display' found"
-  else
-    log::warning "Stream display '$_stream_display' NOT found"
-  fi
-  if [[ ${#enabled_connectors[@]} -lt 2 ]]; then
-    log::info "Only one display found"
-    fallback_to_single_monitor
-  else
-    log::info "More than one connector is enabled"
-  fi
+	log::info "Detecting displays"
+	mapfile -t all_connectors < <(get_connectors_list)
+	mapfile -t enabled_connectors < <(get_enabled_connectors_list)
+	log::info "Existing Connectors: ${#all_connectors[@]} (${all_connectors[*]})"
+	log::info "Active Connectors:   ${#enabled_connectors[@]} (${enabled_connectors[*]})"
+	if grep "$_seat_display" <<<"${enabled_connectors[*]}"; then
+		log::info "Seat display '$_seat_display' found"
+	else
+		log::warning "Seat display'$_seat_display' NOT found"
+	fi
+	if grep "$_stream_display" <<<"${enabled_connectors[*]}"; then
+		log::info "Stream display '$_stream_display' found"
+	else
+		log::warning "Stream display '$_stream_display' NOT found"
+	fi
+	if [[ ${#enabled_connectors[@]} -lt 2 ]]; then
+		log::info "Only one display found"
+		fallback_to_single_monitor
+	else
+		log::info "More than one connector is enabled"
+	fi
 }
 # }
 # KDE Desktop {
 function KDE::get_display_configuration() {
-  if [[ -z "$DEFAULT_STREAM_DISPLAY" ]] || [[ -z "$DEFAULT_SEAT_DISPLAY" ]]; then
-    log::warning "Please set DEFAULT_STREAM_DISPLAY and DEFAULT_SEAT_DISPLAY"
-    log::warning "Automation is a little fragile at the moment"
-  fi
-  if [[ -z "$DISABLE_DISPLAY_AUTODETECT" ]]; then
-    detect_displays
-  fi
+	if [[ -z $DEFAULT_STREAM_DISPLAY ]] || [[ -z $DEFAULT_SEAT_DISPLAY ]]; then
+		log::warning "Please set DEFAULT_STREAM_DISPLAY and DEFAULT_SEAT_DISPLAY"
+		log::warning "Automation is a little fragile at the moment"
+	fi
+	if [[ -z $DISABLE_DISPLAY_AUTODETECT ]]; then
+		detect_displays
+	fi
 }
 # function KDE::get_closest_mode() {
 #   #TODO: Get supported modes via kscreen-doctor instead as it lists and allows more
 #   get_closest_mode
 # }
 function KDE::do() {
-  KDE::get_display_configuration
-  log::info "Configuring ${_stream_display} for streaming"
-  adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
-  if [[ "${SUNSHINE_CLIENT_HDR}" == "true" ]]; then
-    log::info "Enabling HDR for ${_stream_display}"
-    HDR_MODE="enable"
-  else
-    log::info "Disabling HDR for ${_stream_display}"
-    HDR_MODE="disable"
-  fi
-  log::info "Enabling ${_stream_display}"
-  kscreen-doctor output."${_stream_display}".enable
-  log::info "Setting ${_stream_display} to ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
-  kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
-  log::info "Configuring HDR/WCG for ${_stream_display}"
-  kscreen-doctor output."${_stream_display}".hdr.${HDR_MODE} output."${_stream_display}".wcg.${HDR_MODE}
+	KDE::get_display_configuration
+	log::info "Configuring ${_stream_display} for streaming"
+	adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
+	if [[ ${SUNSHINE_CLIENT_HDR} == "true" ]]; then
+		log::info "Enabling HDR for ${_stream_display}"
+		HDR_MODE="enable"
+	else
+		log::info "Disabling HDR for ${_stream_display}"
+		HDR_MODE="disable"
+	fi
+	log::info "Enabling ${_stream_display}"
+	kscreen-doctor output."${_stream_display}".enable
+	log::info "Setting ${_stream_display} to ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
+	kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
+	log::info "Configuring HDR/WCG for ${_stream_display}"
+	kscreen-doctor output."${_stream_display}".hdr.${HDR_MODE} output."${_stream_display}".wcg.${HDR_MODE}
 
-  if [[ "$_stream_display" != "$_seat_display" ]]; then
-    log::info "Disabling ${_seat_display}"
-    kscreen-doctor output."${_seat_display}".disable
-  fi
-  WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
-  export WAYLANDDRV_PRIMARY_MONITOR
+	if [[ $_stream_display != "$_seat_display" ]]; then
+		log::info "Disabling ${_seat_display}"
+		kscreen-doctor output."${_seat_display}".disable
+	fi
+	WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
+	export WAYLANDDRV_PRIMARY_MONITOR
 }
 function KDE::undo() {
-  log::info "Restoring ${_seat_display} to default configuration"
-  log::info "Enabling ${_seat_display}"
-  kscreen-doctor output."${_seat_display}".enable
-  log::info "Switching ${_seat_display} to ${_seat_resolution}@${_seat_refresh_rate}"
-  kscreen-doctor output."${_seat_display}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
-  log::info "Configuring HDR/WCG/VRR for ${_seat_display}"
-  kscreen-doctor output."${_seat_display}".hdr."${_default_hdr}" output."${_seat_display}".wcg."${_default_hdr}" output."${_seat_display}".vrrpolicy."${_default_vrr_mode}"
+	log::info "Restoring ${_seat_display} to default configuration"
+	log::info "Enabling ${_seat_display}"
+	kscreen-doctor output."${_seat_display}".enable
+	log::info "Switching ${_seat_display} to ${_seat_resolution}@${_seat_refresh_rate}"
+	kscreen-doctor output."${_seat_display}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
+	log::info "Configuring HDR/WCG/VRR for ${_seat_display}"
+	kscreen-doctor output."${_seat_display}".hdr."${_default_hdr}" output."${_seat_display}".wcg."${_default_hdr}" output."${_seat_display}".vrrpolicy."${_default_vrr_mode}"
 
-  # Enable and configure other connectors
-  for connector in $(get_connectors_list); do
-    if [[ ${connector} == "${_stream_display}" ]] && [[ "${_stream_display}" != "${_seat_display}" ]]; then
-      log::info "Skipping stream display ${connector}"
-      continue
-    fi
-    if [[ ${connector} != "${_seat_display}" ]]; then
-      log::info "Enabling ${connector}"
-      kscreen-doctor output."${connector}".enable
-    fi
-  done
-  # Disable stream output last
-  if [[ ${_stream_display} != "${_seat_display}" ]]; then
-    log::info "Disabling ${_stream_display}"
-    kscreen-doctor output."${_stream_display}".disable
-  else
-    log::info "Not doing anything else because Stream Display isn't different than Seat display (${_stream_display} != ${_seat_display})"
-  fi
+	# Enable and configure other connectors
+	for connector in $(get_connectors_list); do
+		if [[ ${connector} == "${_stream_display}" ]] && [[ ${_stream_display} != "${_seat_display}" ]]; then
+			log::info "Skipping stream display ${connector}"
+			continue
+		fi
+		if [[ ${connector} != "${_seat_display}" ]]; then
+			log::info "Enabling ${connector}"
+			kscreen-doctor output."${connector}".enable
+		fi
+	done
+	# Disable stream output last
+	if [[ ${_stream_display} != "${_seat_display}" ]]; then
+		log::info "Disabling ${_stream_display}"
+		kscreen-doctor output."${_stream_display}".disable
+	else
+		log::info "Not doing anything else because Stream Display isn't different than Seat display (${_stream_display} != ${_seat_display})"
+	fi
 
-  WAYLANDDRV_PRIMARY_MONITOR=${_seat_display}
-  export WAYLANDDRV_PRIMARY_MONITOR
+	WAYLANDDRV_PRIMARY_MONITOR=${_seat_display}
+	export WAYLANDDRV_PRIMARY_MONITOR
 }
 # }
 # GNOME Desktop {
 function GNOME::get_display_configuration() {
-  _stream_display=$(gdctl show |
-    grep 'Primary: yes' -A2 |
-    tr -s ' ' |
-    tr -d '└' |
-    tr -d '─' |
-    tail -n1 |
-    cut -d ' ' -f 2)
+	_stream_display=$(gdctl show |
+		grep 'Primary: yes' -A2 |
+		tr -s ' ' |
+		tr -d '└' |
+		tr -d '─' |
+		tail -n1 |
+		cut -d ' ' -f 2)
 }
 function GNOME::set() {
-  log::info "Setting '$1' to '$2'"
-  gdctl set --logical-monitor --primary --monitor "$1" --mode "$2"
+	log::info "Setting '$1' to '$2'"
+	gdctl set --logical-monitor --primary --monitor "$1" --mode "$2"
 }
 function GNOME::get_closest_mode() {
-  get_closest_mode
+	get_closest_mode
 }
 function GNOME::do() {
-  for connector in $(get_enabled_connectors_list); do
-    connector=${connector/HDMI-A-/HDMI-}
-    log::info "connector: '$connector'"
-    if [[ "$connector" == "$_stream_display" ]]; then
-      # closest_mode=$(get_closest_mode "$connector" "${_client_width}x${_client_height}" "${_client_refresh_rate}")
-      adjusted_hz=$(printf '%.3f' "$_client_refresh_rate")
-      log::info "Adjusting refresh rate from '$_client_refresh_rate' to '$adjusted_hz'"
-      GNOME::set "$connector" "${_client_best_size}@${adjusted_hz}"
-      #TODO: Properly disable monitors
-      # else
-      # log::info "Disabling $connector"
-      # gdctl --logical-monitor --monitor "$1" --mode "$2"
-    else
-      log::warning "Uh..... What to do with '$connector'?"
-    fi
-  done
+	# Set client best size from client dimensions
+	_client_best_size="${_client_width}x${_client_height}"
+
+	for connector in $(get_enabled_connectors_list); do
+		connector=${connector/HDMI-A-/HDMI-}
+		log::info "connector: '$connector'"
+		if [[ $connector == "$_stream_display" ]]; then
+			# closest_mode=$(get_closest_mode "$connector" "${_client_width}x${_client_height}" "${_client_refresh_rate}")
+			adjusted_hz=$(printf '%.3f' "$_client_refresh_rate")
+			log::info "Adjusting refresh rate from '$_client_refresh_rate' to '$adjusted_hz'"
+			GNOME::set "$connector" "${_client_best_size}@${adjusted_hz}"
+			#TODO: Properly disable monitors
+			# else
+			# log::info "Disabling $connector"
+			# gdctl --logical-monitor --monitor "$1" --mode "$2"
+		else
+			log::info "Connector '$connector' is not stream display, skipping"
+		fi
+	done
 }
 function GNOME::undo() {
-  log::info "Finish Me"
-  for connector in $(get_connectors_list); do
-    log::info "Handling connector '$connector'"
-    connector=${connector/HDMI-A-/HDMI-}
-    if [[ "$connector" == "$_seat_display" ]]; then
-      # closest_mode=$(get_closest_mode "$connector" "${_seat_resolution}" "${_seat_refresh_rate}")
-      adjusted_hz=$(printf '%.3f' "$_seat_refresh_rate")
-      log::info "Adjusting refresh rate from '$_seat_refresh_rate' to '$adjusted_hz'"
-      log::info "Setting '$connector' to '${_seat_resolution}@${adjusted_hz}'"
-      GNOME::set "$connector" "${_seat_resolution}@${adjusted_hz}"
-    else
-      log::info "Finish implementing this display: '$connector'"
-      #FIXME: Restore multi-monitor setup
-      #FIXME: requires upcoming generic get_closest_mode
-      # GNOME::set $(get_generic_mode "$DEFAULT_RESOLUTION" "$DEFAULT_REFRESH_RATE")
-      #
-      # if [[ "$DEFAULT_VRR_MODE" == "automatic" ]] || [[ "$DEFAULT_VRR_MODE" == "enabled" ]]; then
+	log::info "Restoring GNOME display configuration to seat display"
+	for connector in $(get_connectors_list); do
+		log::info "Handling connector '$connector'"
+		connector=${connector/HDMI-A-/HDMI-}
+		if [[ $connector == "$_seat_display" ]]; then
+			# closest_mode=$(get_closest_mode "$connector" "${_seat_resolution}" "${_seat_refresh_rate}")
+			adjusted_hz=$(printf '%.3f' "$_seat_refresh_rate")
+			log::info "Adjusting refresh rate from '$_seat_refresh_rate' to '$adjusted_hz'"
+			log::info "Setting '$connector' to '${_seat_resolution}@${adjusted_hz}'"
+			GNOME::set "$connector" "${_seat_resolution}@${adjusted_hz}"
+		else
+			log::info "Finish implementing multi-monitor restoration for display: '$connector'"
+			#FIXME: Restore multi-monitor setup
+			#FIXME: requires upcoming generic get_closest_mode
+			# GNOME::set $(get_generic_mode "$DEFAULT_RESOLUTION" "$DEFAULT_REFRESH_RATE")
+			#
+			# if [[ "$DEFAULT_VRR_MODE" == "automatic" ]] || [[ "$DEFAULT_VRR_MODE" == "enabled" ]]; then
 
-      # GNOME::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}+vrr"
-      # else
-      #adjusted_hz=$(printf '%.3f' "${DEFAULT_REFRESH_RATE}")
-      # GNOME::set "$connector" "2560x1440@59.951"
-      # fi
-    fi
-  done
+			# GNOME::set "$connector" "${DEFAULT_RESOLUTION}@${DEFAULT_REFRESH_RATE}+vrr"
+			# else
+			#adjusted_hz=$(printf '%.3f' "${DEFAULT_REFRESH_RATE}")
+			# GNOME::set "$connector" "2560x1440@59.951"
+			# fi
+		fi
+	done
 }
 # }
 # Niri Window Manager {
 function niri::get_display_configuration() {
-  #FIXME: Disabled outputs aren't visible to 'niri msg'
-  # niri msg output "HDMI-A-1" on
-  # niri msg output "$_seat_display" on
+	#FIXME: Disabled outputs aren't visible to 'niri msg'
+	# niri msg output "HDMI-A-1" on
+	# niri msg output "$_seat_display" on
 
-  if [[ -z "$DISABLE_DISPLAY_AUTODETECT" ]]; then
-    detect_displays
-  fi
-  _stream_resolution=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}
-  _stream_refresh_rate=${SUNSHINE_CLIENT_FPS}
-  log::info "Stream resolution:   $_stream_resolution"
-  log::info "Stream refresh rate: $_stream_refresh_rate"
+	if [[ -z $DISABLE_DISPLAY_AUTODETECT ]]; then
+		detect_displays
+	fi
+	_stream_resolution=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}
+	_stream_refresh_rate=${SUNSHINE_CLIENT_FPS}
+	log::info "Stream resolution:   $_stream_resolution"
+	log::info "Stream refresh rate: $_stream_refresh_rate"
 }
 function niri::do() {
 
-  log::info "Performing niri logic"
-  log::info "Setting ${_stream_display} to enabled"
-  niri msg output "${_stream_display}" on
-  log::info "Setting ${_stream_display} mode to ${_stream_resolution}"
-  log::info "This tends to crash a lot, especially when some variables are undefined."
-  log::info "If this happens, try restarting your session."
-  niri msg output "${_stream_display}" custom-mode "${_stream_resolution}@${_stream_refresh_rate}"
-  if [[ "$_seat_display" != "$_stream_display" ]]; then
-    log::info "Disabling seat display"
-    niri msg output "${_seat_display}" off
-  fi
+	log::info "Performing niri logic"
+	log::info "Setting ${_stream_display} to enabled"
+	niri msg output "${_stream_display}" on
+	log::info "Setting ${_stream_display} mode to ${_stream_resolution}"
+	log::info "This tends to crash a lot, especially when some variables are undefined."
+	log::info "If this happens, try restarting your session."
+	niri msg output "${_stream_display}" custom-mode "${_stream_resolution}@${_stream_refresh_rate}"
+	if [[ $_seat_display != "$_stream_display" ]]; then
+		log::info "Disabling seat display"
+		niri msg output "${_seat_display}" off
+	fi
 }
 function niri::undo() {
-  log::info "Undo command is temporarily disabled for stability purposes"
-  # log::info "Enabling seat display"
-  # niri msg output "${_seat_display}" on
-  # log::info "Disabling stream display"
-  # niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
+	log::info "Undo command is temporarily disabled for stability purposes"
+	# log::info "Enabling seat display"
+	# niri msg output "${_seat_display}" on
+	# log::info "Disabling stream display"
+	# niri msg output "${_seat_display}" mode "${DEFAULT_RESOLUTION}"
 
-  # if [[ "$_seat_display" != "$_stream_display" ]]; then
-  # niri msg output "${_stream_display}" off
-  # fi
+	# if [[ "$_seat_display" != "$_stream_display" ]]; then
+	# niri msg output "${_stream_display}" off
+	# fi
 
 }
 # }
 # Main logic {
 function mainloop() {
-  log::info "Program Start"
-  log::info "Automatic resolution picking is currently removed; Stream settings will be applied as-is."
-  # is_dummy_enabled=false
+	log::info "Program Start"
+	log::info "Automatic resolution picking is currently removed; Stream settings will be applied as-is."
+	# is_dummy_enabled=false
 
-  # Print the startup state {
-  log::info "Global variables at start:
+	# Print the startup state {
+	log::info "Global variables at start:
   _seat_resolution=$_seat_resolution
   _seat_refresh_rate=$_seat_refresh_rate
   _default_vrr_mode=$_default_vrr_mode
@@ -356,40 +359,37 @@ function mainloop() {
   XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP
   XDG_SESSION_DESKTOP=$XDG_SESSION_DESKTOP
   "
-  # }
+	# }
 
-  case "$XDG_CURRENT_DESKTOP" in
-  "GNOME" | "KDE" | "niri")
-    # detect_displays
-    # "${XDG_CURRENT_DESKTOP}::get_display_configuration"
-    # "${XDG_CURRENT_DESKTOP}::get_closest_mode"
-    "${XDG_CURRENT_DESKTOP}::$1"
-    ;;
-  *)
-    if [[ -n "$XDG_CURRENT_DESKTOP" ]]; then
-      log::warning "Unimplemented desktop environment '$XDG_CURRENT_DESKTOP'"
-    else
-      log::warning "XDG_CURRENT_DESKTOP is not set!"
-    fi
-    log::info "Entering generic environment methods"
-    detect_displays
-    get_display_configuration
-    get_closest_mode
-    set_display_mode "$1"
-    ;;
-  esac
-  if [[ ${_stream_display} == "" ]]; then
-    log::info "Could not determine output to stream out!!!"
-    exit 3
-  fi
+	case "$XDG_CURRENT_DESKTOP" in
+	"GNOME" | "KDE" | "niri")
+		# detect_displays
+		# "${XDG_CURRENT_DESKTOP}::get_display_configuration"
+		# "${XDG_CURRENT_DESKTOP}::get_closest_mode"
+		"${XDG_CURRENT_DESKTOP}::$1"
+		;;
+	*)
+		if [[ -n $XDG_CURRENT_DESKTOP ]]; then
+			log::error "Desktop environment '$XDG_CURRENT_DESKTOP' is not supported"
+		else
+			log::error "XDG_CURRENT_DESKTOP is not set!"
+		fi
+		log::error "Cannot apply automation: no desktop environment handler available"
+		exit 0
+		;;
+	esac
+	if [[ ${_stream_display} == "" ]]; then
+		log::error "Could not determine output to stream out!!!"
+		exit 0
+	fi
 
-  # Set the preferred monitor for WINE's wayland driver
-  # WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
-  # export WAYLANDDRV_PRIMARY_MONITOR
+	# Set the preferred monitor for WINE's wayland driver
+	# WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
+	# export WAYLANDDRV_PRIMARY_MONITOR
 
-  unset _preferred_monitor _session_type _primary _client_height _client_width _refresh
-  log::info "Reminder: If your client gets a black screen, try rebooting the host"
-  log::info "Program End"
+	unset _preferred_monitor _session_type _primary _client_height _client_width _refresh
+	log::info "Reminder: If your client gets a black screen, try rebooting the host"
+	log::info "Program End"
 }
 mainloop "$@"
 # }
