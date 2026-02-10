@@ -187,7 +187,7 @@ function KDE::do() {
     log::info "Disabling HDR for ${_stream_display}"
     HDR_MODE="disable"
   fi
-  kscreen.doctor output."${_stream_display}".hdr.${HDR_MODE} output."${_stream_display}".wcg.${HDR_MODE}
+  kscreen-doctor output."${_stream_display}".hdr.${HDR_MODE} output."${_stream_display}".wcg.${HDR_MODE}
   # wait for the screen to settle a bit
   adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
   log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
@@ -208,7 +208,7 @@ function KDE::undo() {
   kscreen-doctor output."${_seat_display}".enable
   log::info "Switching ${_seat_display} to ${_seat_resolution}@${_seat_refresh_rate}"
   kscreen-doctor output."${_seat_display}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
-  kscreen.doctor output."${_seat_display}".hdr."${_default_hdr}" output."${_seat_display}".wcg."${_default_hdr}"
+  kscreen-doctor output."${_seat_display}".hdr."${_default_hdr}" output."${_seat_display}".wcg."${_default_hdr}"
   kscreen-doctor output."${_seat_display}.vrrpolicy.${_default_vrr_mode}"
   for connector in $(get_connectors_list); do
     if [[ ${connector} == "${_stream_display}" ]] && [[ "${_stream_display}" != "${_seat_display}" ]]; then
