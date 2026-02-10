@@ -177,9 +177,8 @@ function KDE::get_display_configuration() {
 # }
 function KDE::do() {
   KDE::get_display_configuration
-  log::info "Finish Me"
-  log::info "Enabling ${_stream_display}"
-  kscreen-doctor output."${_stream_display}".enable
+  log::info "Configuring ${_stream_display} for streaming"
+  adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
   if [[ "${SUNSHINE_CLIENT_HDR}" == "true" ]]; then
     log::info "Enabling HDR for ${_stream_display}"
     HDR_MODE="enable"
@@ -187,13 +186,12 @@ function KDE::do() {
     log::info "Disabling HDR for ${_stream_display}"
     HDR_MODE="disable"
   fi
-  kscreen-doctor output."${_stream_display}".hdr.${HDR_MODE} output."${_stream_display}".wcg.${HDR_MODE}
-  # wait for the screen to settle a bit
-  adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
-  log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
-  # Try resolution at any refresh rate first, then apply refresh rate as a bonus
-  # kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"
+  log::info "Enabling ${_stream_display}"
+  kscreen-doctor output."${_stream_display}".enable
+  log::info "Setting ${_stream_display} to ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
   kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
+  log::info "Configuring HDR/WCG for ${_stream_display}"
+  kscreen-doctor output."${_stream_display}".hdr.${HDR_MODE} output."${_stream_display}".wcg.${HDR_MODE}
 
   if [[ "$_stream_display" != "$_seat_display" ]]; then
     log::info "Disabling ${_seat_display}"
@@ -203,25 +201,24 @@ function KDE::do() {
   export WAYLANDDRV_PRIMARY_MONITOR
 }
 function KDE::undo() {
-  log::info "Finish Me"
+  log::info "Restoring ${_seat_display} to default configuration"
   log::info "Enabling ${_seat_display}"
   kscreen-doctor output."${_seat_display}".enable
   log::info "Switching ${_seat_display} to ${_seat_resolution}@${_seat_refresh_rate}"
   kscreen-doctor output."${_seat_display}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
-  kscreen-doctor output."${_seat_display}".hdr."${_default_hdr}" output."${_seat_display}".wcg."${_default_hdr}"
-  kscreen-doctor output."${_seat_display}".vrrpolicy.${_default_vrr_mode}
+  log::info "Configuring HDR/WCG/VRR for ${_seat_display}"
+  kscreen-doctor output."${_seat_display}".hdr."${_default_hdr}" output."${_seat_display}".wcg."${_default_hdr}" output."${_seat_display}".vrrpolicy."${_default_vrr_mode}"
+
+  # Enable and configure other connectors
   for connector in $(get_connectors_list); do
     if [[ ${connector} == "${_stream_display}" ]] && [[ "${_stream_display}" != "${_seat_display}" ]]; then
-      log::info "Skipping over ${connector} (${connector} == ${_stream_display} and ${_stream_display} != ${_seat_display})"
+      log::info "Skipping stream display ${connector}"
       continue
     fi
-    if [[ ${connector} == "${_seat_display}" ]]; then
-      # log::info "Handling Seat display ${connector}"
-      kscreen-doctor output."${connector}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
-      kscreen-doctor output."${connector}".vrrpolicy.${_default_vrr_mode}
+    if [[ ${connector} != "${_seat_display}" ]]; then
+      log::info "Enabling ${connector}"
+      kscreen-doctor output."${connector}".enable
     fi
-    log::info "Enabling ${connector}"
-    kscreen-doctor output."${connector}".enable
   done
   # Disable stream output last
   if [[ ${_stream_display} != "${_seat_display}" ]]; then
