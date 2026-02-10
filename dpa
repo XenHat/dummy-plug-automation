@@ -83,6 +83,7 @@ _stream_display=${DEFAULT_STREAM_DISPLAY:=HDMI-A-1}
 _client_height=${SUNSHINE_CLIENT_HEIGHT:-720}
 _client_width=${SUNSHINE_CLIENT_WIDTH:-1280}
 _client_refresh_rate=${SUNSHINE_CLIENT_FPS:-60}
+_default_hdr=${DEFAULT_HDR:-disable}
 _client_best_size=""
 # }
 # Common functions {
@@ -179,6 +180,15 @@ function KDE::do() {
   log::info "Finish Me"
   log::info "Enabling ${_stream_display}"
   kscreen-doctor output."${_stream_display}".enable
+  if [[ "${SUNSHINE_CLIENT_HDR}" == "true" ]]; then
+    log::info "Enabling HDR for ${_stream_display}"
+    HDR_MODE="enable"
+  else
+    log::info "Disabling HDR for ${_stream_display}"
+    HDR_MODE="disable"
+  fi
+  kscreen.doctor output."${_stream_display}".hdr.${HDR_MODE} output."${_stream_display}".wcg.${HDR_MODE}
+  # wait for the screen to settle a bit
   adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
   log::info "Attempting kscreen-doctor output.${_stream_display}.mode.${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
   # Try resolution at any refresh rate first, then apply refresh rate as a bonus
@@ -198,6 +208,7 @@ function KDE::undo() {
   kscreen-doctor output."${_seat_display}".enable
   log::info "Switching ${_seat_display} to ${_seat_resolution}@${_seat_refresh_rate}"
   kscreen-doctor output."${_seat_display}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
+  kscreen.doctor output."${_seat_display}".hdr."${_default_hdr}" output."${_seat_display}".wcg."${_default_hdr}"
   kscreen-doctor output."${_seat_display}.vrrpolicy.${_default_vrr_mode}"
   for connector in $(get_connectors_list); do
     if [[ ${connector} == "${_stream_display}" ]] && [[ "${_stream_display}" != "${_seat_display}" ]]; then
@@ -345,6 +356,7 @@ function mainloop() {
   _client_height=$_client_height
   _client_width=$_client_width
   _client_refresh_rate=$_client_refresh_rate
+  _default_hdr=$_default_hdr
   XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP
   XDG_SESSION_DESKTOP=$XDG_SESSION_DESKTOP
   "
