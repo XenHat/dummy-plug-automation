@@ -1,0 +1,2 @@
+journalctl --user --pager-end --follow --output=cat -g dpa:: | logalize
+
