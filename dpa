@@ -77,7 +77,7 @@ readonly _default_hdr=${DEFAULT_HDR:-disable}
 # }
 function get_connectors_list() {
 	for edid in /sys/class/drm/card*-*-*/; do
-		case ${edid} in *-Writeback-*) continue ;; esac
+		case ${edid} in *-Writeback-*) continue ;; *) ;; esac
 		edid=${edid%/}        # Remove trailing slash
 		edid=${edid##*/}      # Get basename
 		echo "${edid#card*-}" # Remove card*- prefix using glob pattern
@@ -85,15 +85,15 @@ function get_connectors_list() {
 }
 function get_enabled_connectors_list() {
 	for edid in /sys/class/drm/card*-*-*/; do
-		case ${edid} in *-Writeback-*) continue ;; esac
-		if [[ "$(<"$edid/enabled")" == "disabled" ]]; then continue; fi
+		case ${edid} in *-Writeback-*) continue ;; *) ;; esac
+		if [[ "$(<"${edid}/enabled")" == "disabled" ]]; then continue; fi
 		edid=${edid%/}        # Remove trailing slash
 		edid=${edid##*/}      # Get basename
 		echo "${edid#card*-}" # Remove card*- prefix using glob pattern
 	done
 }
 function KDE::get_display_configuration() {
-	if [[ -z $DEFAULT_STREAM_DISPLAY ]] || [[ -z $DEFAULT_SEAT_DISPLAY ]]; then
+	if [[ -z ${DEFAULT_STREAM_DISPLAY} ]] || [[ -z ${DEFAULT_SEAT_DISPLAY} ]]; then
 		log::warning "Please set DEFAULT_STREAM_DISPLAY and DEFAULT_SEAT_DISPLAY"
 		log::warning "Automation is a little fragile at the moment"
 	fi
@@ -108,11 +108,14 @@ function KDE::do() {
 
 	KDE::get_display_configuration
 	log::info "Configuring ${_stream_display} for streaming"
-	adjusted_hz=$(printf '%.0f' "$_client_refresh_rate")
+	adjusted_hz=$(printf '%.0f' "${_client_refresh_rate}")
 
 	# Determine HDR mode
-	local -r HDR_MODE=$([[ ${SUNSHINE_CLIENT_HDR} == "true" ]] && echo "enable" || echo "disable")
-	log::info "$([ "${SUNSHINE_CLIENT_HDR}" == "true" ] && echo "Enabling" || echo "Disabling") HDR for ${_stream_display}"
+	HDR_MODE=disable
+	if [[ ${SUNSHINE_CLIENT_HDR} == "true" ]]; then
+		HDR_MODE="enable"
+	fi
+	log::info "$([[ ${SUNSHINE_CLIENT_HDR} == "true" ]] && echo "Enabling" || echo "Disabling") HDR for ${_stream_display}" || true
 
 	log::info "Setting '${_stream_display}' to ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
 	kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
@@ -123,7 +126,7 @@ function KDE::do() {
 	log::info "Waiting before disabling other displays..."
 	sleep 1
 	local -a all_connectors
-	mapfile -t all_connectors < <(get_connectors_list)
+	mapfile -t all_connectors < <(get_connectors_list) || true
 	for connector in "${all_connectors[@]}"; do
 		if [[ ${connector} != "${_stream_display}" ]]; then
 			log::info "Disabling ${connector}"
@@ -145,7 +148,7 @@ function KDE::undo() {
 
 	# Cache connectors list to avoid repeated subshell spawning
 	local -a all_connectors
-	mapfile -t all_connectors < <(get_connectors_list)
+	mapfile -t all_connectors < <(get_connectors_list) || true
 
 	# Enable and configure other connectors
 	for connector in "${all_connectors[@]}"; do
@@ -178,29 +181,29 @@ function mainloop() {
 
 	# Print the startup state {
 	log::info "Global variables at start:
-  _seat_resolution=$_seat_resolution
-  _seat_refresh_rate=$_seat_refresh_rate
-  _default_vrr_mode=$_default_vrr_mode
-  _seat_display=$_seat_display
-  _stream_display=$_stream_display
-  _client_height=$_client_height
-  _client_width=$_client_width
-  _client_refresh_rate=$_client_refresh_rate
-  _default_hdr=$_default_hdr
-  XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP
-  XDG_SESSION_DESKTOP=$XDG_SESSION_DESKTOP
+  _seat_resolution=${_seat_resolution}
+  _seat_refresh_rate=${_seat_refresh_rate}
+  _default_vrr_mode=${_default_vrr_mode}
+  _seat_display=${_seat_display}
+  _stream_display=${_stream_display}
+  _client_height=${_client_height}
+  _client_width=${_client_width}
+  _client_refresh_rate=${_client_refresh_rate}
+  _default_hdr=${_default_hdr}
+  XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP}
+  XDG_SESSION_DESKTOP=${XDG_SESSION_DESKTOP}
   "
 	# }
 
-	case "$XDG_CURRENT_DESKTOP" in
+	case "${XDG_CURRENT_DESKTOP}" in
 	"GNOME" | "KDE" | "niri")
 		# "${XDG_CURRENT_DESKTOP}::get_display_configuration"
 		# "${XDG_CURRENT_DESKTOP}::get_closest_mode"
 		"${XDG_CURRENT_DESKTOP}::$1"
 		;;
 	*)
-		if [[ -n $XDG_CURRENT_DESKTOP ]]; then
-			log::error "Desktop environment '$XDG_CURRENT_DESKTOP' is not supported"
+		if [[ -n ${XDG_CURRENT_DESKTOP} ]]; then
+			log::error "Desktop environment '${XDG_CURRENT_DESKTOP}' is not supported"
 		else
 			log::error "XDG_CURRENT_DESKTOP is not set!"
 		fi
