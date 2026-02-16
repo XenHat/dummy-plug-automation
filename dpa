@@ -1,9 +1,27 @@
 #!/usr/bin/env bash
-_enable_auto_res_fallback=false
+# Modeline {
+#	 vi: foldmarker={,} foldmethod=marker foldlevel=0 tabstop=4 filetype=bash
+# }
 # Logging {
 # Log facility from
 # https://blog.brujordet.no/post/bash/debugging_bash_like_a_sire/
 LOG_LEVEL=${LOG_LEVEL:-1}
+function log::level_is_active {
+	local check_level current_level
+	check_level=$1
+
+	declare -A log_levels=(
+		[DEBUG]=1
+		[INFO]=2
+		[WARN]=3
+		[ERROR]=4
+	)
+
+	check_level="${log_levels["${check_level}"]}"
+	current_level="${log_levels["${LOG_LEVEL}"]}"
+
+	((check_level >= current_level))
+}
 function log::_write_log {
 	# local timestamp file function_name log_level
 	local function_name log_level
@@ -28,22 +46,6 @@ function log::info {
 function log::warning {
 	log::_write_log "WARN" "$@"
 }
-function log::level_is_active {
-	local check_level current_level
-	check_level=$1
-
-	declare -A log_levels=(
-		[DEBUG]=1
-		[INFO]=2
-		[WARN]=3
-		[ERROR]=4
-	)
-
-	check_level="${log_levels["${check_level}"]}"
-	current_level="${log_levels["${LOG_LEVEL}"]}"
-
-	((check_level >= current_level))
-}
 function log::error {
 	log::_write_log "ERROR" "$@"
 	local stack_offset=1
@@ -62,73 +64,17 @@ function log::error {
 # Trap errors immediately {
 trap 'log::error "[TRAP] An error has occurred"' ERR
 # }
-# Dependencies {
-if _enable_auto_res_fallback && ! command -v agrep >/dev/null; then
-	message="agrep not found, cannot continue"
-	log::error "${message}"
-	exit 0
-fi
-if ! command -v kscreen-doctor; then
-	log::error "Cannot find kscreen-doctor, automation WILL NOT WORK!"
-	exit 0
-fi
-# }
 # Global Variables {
-# is_there_other_active_displays=false
-_seat_resolution=${DEFAULT_RESOLUTION:-1920x1080}
-_seat_refresh_rate=${DEFAULT_REFRESH_RATE:-60}
-_default_vrr_mode=${DEFAULT_VRR_MODE:-never}
+readonly _seat_resolution=${DEFAULT_RESOLUTION:-1920x1080}
+readonly _seat_refresh_rate=${DEFAULT_REFRESH_RATE:-60}
+readonly _default_vrr_mode=${DEFAULT_VRR_MODE:-never}
 _seat_display=${DEFAULT_SEAT_DISPLAY:=DP-1}
 _stream_display=${DEFAULT_STREAM_DISPLAY:=HDMI-A-1}
 _client_height=${SUNSHINE_CLIENT_HEIGHT:-720}
 _client_width=${SUNSHINE_CLIENT_WIDTH:-1280}
 _client_refresh_rate=${SUNSHINE_CLIENT_FPS:-60}
-_default_hdr=${DEFAULT_HDR:-disable}
-_client_best_size=""
-# Mark immutable configuration
-readonly _enable_auto_res_fallback
+readonly _default_hdr=${DEFAULT_HDR:-disable}
 # }
-# Common functions {
-function contains_display() {
-	local -r needle=$1
-	local display
-	shift
-	for display in "$@"; do
-		[[ $display == "$needle" ]] && return 0
-	done
-	return 1
-}
-function get_systemd_session_type() {
-	# Get systemd session type
-	#FIXME: hyprland doesn't show as "active", but as a seat on tty3
-	# user_sessions=$(loginctl list_sessions | grep "$USER")
-	if [[ -n $XDG_SESSION_TYPE ]]; then
-		_session_type="$XDG_SESSION_TYPE"
-	else
-		# shellcheck disable=SC2312
-		_session_type=$(
-			loginctl 2>/dev/null show-session \
-				"$(awk '/tty/ {print $1}' <(loginctl list-sessions |
-					grep "$USER" |
-					grep -v manager))" -p Type | awk -F= '{print $2}'
-		)
-	fi
-
-	if [[ -n $_session_type ]]; then
-		echo "$_session_type"
-		exit 0
-	else
-		environment=$(env)
-		if [[ $environment == *"WAYLAND_DISPLAY"* ]]; then
-			echo "wayland"
-			exit 0
-		elif [[ $environment == *"DISPLAY"* ]]; then
-			echo "x11"
-			exit 0
-		fi
-	fi
-	echo "none"
-}
 function get_connectors_list() {
 	for edid in /sys/class/drm/card*-*-*/; do
 		case ${edid} in *-Writeback-*) continue ;; esac
@@ -146,44 +92,10 @@ function get_enabled_connectors_list() {
 		echo "${edid#card*-}" # Remove card*- prefix using glob pattern
 	done
 }
-function fallback_to_single_monitor() {
-	_stream_display=${enabled_connectors[0]}
-	_seat_display=${enabled_connectors[0]}
-	log::info "New seat display:   $_seat_display"
-	log::info "New stream display: $_stream_display"
-}
-function detect_displays() {
-	log::info "Detecting displays"
-	mapfile -t all_connectors < <(get_connectors_list)
-	mapfile -t enabled_connectors < <(get_enabled_connectors_list)
-	log::info "Existing Connectors: ${#all_connectors[@]} (${all_connectors[*]})"
-	log::info "Active Connectors:   ${#enabled_connectors[@]} (${enabled_connectors[*]})"
-	if contains_display "$_seat_display" "${enabled_connectors[@]}"; then
-		log::info "Seat display '$_seat_display' found"
-	else
-		log::warning "Seat display '$_seat_display' NOT found"
-	fi
-	if contains_display "$_stream_display" "${enabled_connectors[@]}"; then
-		log::info "Stream display '$_stream_display' found"
-	else
-		log::warning "Stream display '$_stream_display' NOT found"
-	fi
-	if [[ ${#enabled_connectors[@]} -lt 2 ]]; then
-		log::info "Only one display found"
-		fallback_to_single_monitor
-	else
-		log::info "More than one connector is enabled"
-	fi
-}
-# }
-# KDE Desktop {
 function KDE::get_display_configuration() {
 	if [[ -z $DEFAULT_STREAM_DISPLAY ]] || [[ -z $DEFAULT_SEAT_DISPLAY ]]; then
 		log::warning "Please set DEFAULT_STREAM_DISPLAY and DEFAULT_SEAT_DISPLAY"
 		log::warning "Automation is a little fragile at the moment"
-	fi
-	if [[ -z $DISABLE_DISPLAY_AUTODETECT ]]; then
-		detect_displays
 	fi
 }
 function KDE::do() {
@@ -259,87 +171,6 @@ function KDE::undo() {
 	WAYLANDDRV_PRIMARY_MONITOR=${_seat_display}
 	export WAYLANDDRV_PRIMARY_MONITOR
 }
-# Niri Window Manager {
-function niri::get_display_configuration() {
-	#FIXME: Disabled outputs aren't visible to 'niri msg'
-	# niri msg output "HDMI-A-1" on
-	# niri msg output "$_seat_display" on
-
-	if [[ -z $DISABLE_DISPLAY_AUTODETECT ]]; then
-		detect_displays
-	fi
-	_stream_resolution=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}
-	_stream_refresh_rate=${SUNSHINE_CLIENT_FPS}
-	log::info "Stream resolution:   $_stream_resolution"
-	log::info "Stream refresh rate: $_stream_refresh_rate"
-}
-function niri::do() {
-	if [[ -z ${_stream_display} ]]; then
-		log::error "Stream display not set!"
-		return 0
-	fi
-	log::info "Enabling ${_stream_display}"
-	niri msg output "${_stream_display}" on
-
-	niri::get_display_configuration
-	log::info "Configuring ${_stream_display} for streaming"
-	log::info "Setting ${_stream_display} mode to ${_stream_resolution}@${_stream_refresh_rate}"
-	log::info "This tends to crash a lot, especially when some variables are undefined."
-	log::info "If this happens, try restarting your session."
-	niri msg output "${_stream_display}" custom-mode "${_stream_resolution}@${_stream_refresh_rate}"
-
-	# Disable all other displays
-	log::info "Waiting before disabling other displays..."
-	sleep 1
-	local -a all_connectors
-	mapfile -t all_connectors < <(get_connectors_list)
-	for connector in "${all_connectors[@]}"; do
-		if [[ ${connector} != "${_stream_display}" ]]; then
-			log::info "Disabling ${connector}"
-			niri msg output "${connector}" off
-		fi
-	done
-
-	WAYLANDDRV_PRIMARY_MONITOR=${_stream_display}
-	export WAYLANDDRV_PRIMARY_MONITOR
-}
-function niri::undo() {
-	log::info "Restoring ${_seat_display} to default configuration"
-	log::info "Enabling ${_seat_display}"
-	niri msg output "${_seat_display}" on
-	log::info "Switching ${_seat_display} to ${_seat_resolution}@${_seat_refresh_rate}"
-	niri msg output "${_seat_display}" custom-mode "${_seat_resolution}@${_seat_refresh_rate}"
-
-	# Cache connectors list to avoid repeated subshell spawning
-	local -a all_connectors
-	mapfile -t all_connectors < <(get_connectors_list)
-
-	# Enable and configure other connectors
-	for connector in "${all_connectors[@]}"; do
-		if [[ ${connector} == "${_stream_display}" ]] && [[ ${_stream_display} != "${_seat_display}" ]]; then
-			log::info "Skipping stream display ${connector}"
-			continue
-		fi
-		if [[ ${connector} != "${_seat_display}" ]]; then
-			log::info "Enabling ${connector}"
-			niri msg output "${connector}" on
-		fi
-	done
-	# Disable stream output last
-	if [[ ${_stream_display} != "${_seat_display}" ]]; then
-		log::info "Waiting before disabling stream display..."
-		sleep 1
-		log::info "Disabling ${_stream_display}"
-		niri msg output "${_stream_display}" off
-	else
-		log::info "Not doing anything else because Stream Display isn't different than Seat display (${_stream_display} != ${_seat_display})"
-	fi
-
-	WAYLANDDRV_PRIMARY_MONITOR=${_seat_display}
-	export WAYLANDDRV_PRIMARY_MONITOR
-}
-
-# Main logic {
 function mainloop() {
 	log::info "Program Start"
 	log::info "Automatic resolution picking is currently removed; Stream settings will be applied as-is."
@@ -363,7 +194,6 @@ function mainloop() {
 
 	case "$XDG_CURRENT_DESKTOP" in
 	"GNOME" | "KDE" | "niri")
-		# detect_displays
 		# "${XDG_CURRENT_DESKTOP}::get_display_configuration"
 		# "${XDG_CURRENT_DESKTOP}::get_closest_mode"
 		"${XDG_CURRENT_DESKTOP}::$1"
@@ -392,7 +222,3 @@ function mainloop() {
 	log::info "Program End"
 }
 mainloop "$@"
-# }
-# Modeline {
-#	 vi: foldmarker={,} foldmethod=marker foldlevel=1 tabstop=4 filetype=bash
-# }
