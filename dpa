@@ -177,9 +177,7 @@ function KDE::undo() {
 function mainloop() {
 	log::info "Program Start"
 	log::info "Automatic resolution picking is currently removed; Stream settings will be applied as-is."
-	# is_dummy_enabled=false
 
-	# Print the startup state {
 	log::info "Global variables at start:
   _seat_resolution=${_seat_resolution}
   _seat_refresh_rate=${_seat_refresh_rate}
@@ -193,7 +191,6 @@ function mainloop() {
   XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP}
   XDG_SESSION_DESKTOP=${XDG_SESSION_DESKTOP}
   "
-	# }
 
 	case "${XDG_CURRENT_DESKTOP}" in
 	"GNOME" | "KDE" | "niri")
