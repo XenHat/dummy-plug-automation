@@ -4,13 +4,8 @@ Automation for remote streaming using a dummy plug on Linux, supporting both Xor
 
 ## Supported Desktop Environments and Window Managers
 
-- [X] KDE5/6
-- [ ] GNOME 48+ *re-write needed*
-- [ ] Hyprland *re-write needed*
-- [ ] bspwm *re-write needed*
-- [X] Niri
-- [X] Best effort using xrandr and wlrandr for others
-- [ ] COSMIC (Planned)
+- [x] KDE5/6
+- [x] Niri
 
 ## Usage
 
@@ -31,7 +26,6 @@ global_prep_cmd = [{"do":"sh -c \"/path/to/dpa do\"","undo":"sh -c \"/path/to/dp
 
 This utility currently assumes that your main monitor is connected through Display Port (as DP-1), and your dummy plug/stream display is connected through HDMI (as HDMI-A-1), although it can be somewhat configured via **environment variables**:
 
-
 ```bash
 # ~/.profile
 DEFAULT_SEAT_DISPLAY=DP-1 # the "Main" monitor to use for use when at the computer
@@ -40,7 +34,9 @@ DEFAULT_RESOLUTION=2560x1440
 DEFAULT_REFRESH_RATE=240 # The refresh rate to attempt to set when quitting the stream session
 DEFAULT_VRR_MODE=automatic # VRR Mode, A.K.A Freesync/GSync
 ```
+
 In case you only have one output/monitor, you can leave `DEFAULT_STREAM_DISPLAY` unset, automatic detection will occur and treat `DEFAULT_SEAT_DISPLAY` as the stream output.
 
 ---
+
 [sunshine-website]: https://app.lizardbyte.dev/Sunshine/
