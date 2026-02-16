@@ -106,7 +106,6 @@ function KDE::do() {
 	log::info "Enabling ${_stream_display}"
 	kscreen-doctor output."${_stream_display}".enable
 
-	KDE::get_display_configuration
 	log::info "Configuring ${_stream_display} for streaming"
 	adjusted_hz=$(printf '%.0f' "${_client_refresh_rate}")
 
@@ -194,7 +193,7 @@ function mainloop() {
 
 	case "${XDG_CURRENT_DESKTOP}" in
 	"GNOME" | "KDE" | "niri")
-		# "${XDG_CURRENT_DESKTOP}::get_display_configuration"
+		"${XDG_CURRENT_DESKTOP}::get_display_configuration"
 		# "${XDG_CURRENT_DESKTOP}::get_closest_mode"
 		"${XDG_CURRENT_DESKTOP}::$1"
 		;;
