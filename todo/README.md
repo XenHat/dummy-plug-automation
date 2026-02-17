@@ -19,3 +19,9 @@
 - [ ] re-implement hyprland
 - [ ] rework code to not assume the dummy plug is HDMI. There are some DisplayPort ones.
 - [ ] test X11 for awesomewm, dwm, etc
+- [ ] Approximate match of the refresh rate using:
+  ````
+  if (( val >= target - 1 && val <= target + 1 )); then
+      echo "Match found"
+  fi```
+  ````
