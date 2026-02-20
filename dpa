@@ -173,11 +173,11 @@ function KDE::undo() {
 function niri::get_display_configuration() {
 	_json_display_config=$(niri msg -j outputs)
 	mapfile -t outputs_list < <(echo "${_json_display_config}" | jq -r '.[] | .name')
-	log::info "outputs_list: ${outputs_list[*]}"
-	if echo "${_json_display_config}" | jq "has(\"${_stream_display}\")"; then
+	#log::info "outputs_list: ${outputs_list[*]}"
+	if [[ "$(echo "${_json_display_config}" | jq 'has("'${_stream_display}'")')" == "true" ]]; then
 		_has_stream_display=true
 	fi
-	if echo "${_json_display_config}" | jq "has(\"${_seat_display}\")"; then
+	if [[ "$(echo "${_json_display_config}" | jq 'has("'${_seat_display}'")')" == "true" ]]; then
 		_has_seat_display=true
 	fi
 	log::info "Stream Display Present: ${_has_stream_display}"
