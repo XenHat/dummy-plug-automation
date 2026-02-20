@@ -216,6 +216,8 @@ function niri::do() {
 	log::info "Done"
 }
 function niri::undo() {
+	# NOTE: Niri+sunshine crashes a lot on older sunshine releases.
+	# I've confirmed that sunshine-git v2026.218.44016-1 works properly
 	# Niri is fickle, let's be extremely explicit about the behavior we want.
 	if [[ ${_has_stream_display} == "true" ]] && [[ ${_has_seat_display} == "false" ]]; then
 		# Only the stream display is present
