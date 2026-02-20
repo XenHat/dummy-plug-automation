@@ -235,6 +235,7 @@ function niri::undo() {
 		niri msg output "${_seat_display}" on
 		niri msg output "${_seat_display}" mode "${_seat_resolution}"
 		niri msg output "${_seat_display}" position "0x0"
+		sleep 2
 		log::info "Disabling ${_stream_display}"
 		niri msg output "${_stream_display}" off
 		niri msg action focus-monitor "${_seat_display}"
