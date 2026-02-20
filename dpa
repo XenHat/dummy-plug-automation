@@ -269,14 +269,14 @@ function mainloop() {
 		if [[ -n ${XDG_CURRENT_DESKTOP} ]]; then
 			log::error "Desktop environment '${XDG_CURRENT_DESKTOP}' is not supported"
 		else
-			log::error "XDG_CURRENT_DESKTOP is not set!"
+			log::warning "XDG_CURRENT_DESKTOP is not set!"
 		fi
-		log::error "Cannot apply automation: no desktop environment handler available"
+		log::warning "Cannot apply automation: no desktop environment handler available"
 		exit 0
 		;;
 	esac
 	if [[ ${_stream_display} == "" ]]; then
-		log::error "Could not determine output to stream out!!!"
+		log::warning "Could not determine output to stream out!!!"
 		exit 0
 	fi
 
