@@ -120,9 +120,9 @@ function KDE::do() {
 	log::info "$([[ ${SUNSHINE_CLIENT_HDR} == "true" ]] && echo "Enabling" || echo "Disabling") HDR for ${_stream_display}" || true
 
 	log::info "Setting '${_stream_display}' to ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
-	kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}"
+	log::info "$(kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}")"
 	log::info "Configuring HDR/WCG for ${_stream_display}"
-	kscreen-doctor output."${_stream_display}".hdr."${HDR_MODE}" output."${_stream_display}".wcg."${HDR_MODE}"
+	log::info "$(kscreen-doctor output."${_stream_display}".hdr."${HDR_MODE}" output."${_stream_display}".wcg."${HDR_MODE}")"
 
 	# Disable all other displays
 	log::info "Waiting before disabling other displays..."
@@ -132,7 +132,7 @@ function KDE::do() {
 	for connector in "${all_connectors[@]}"; do
 		if [[ ${connector} != "${_stream_display}" ]]; then
 			log::info "Disabling ${connector}"
-			kscreen-doctor output."${connector}".disable
+			log::info "$(kscreen-doctor output."${connector}".disable))"
 		fi
 	done
 }
@@ -157,7 +157,7 @@ function KDE::undo() {
 		fi
 		if [[ ${connector} != "${_seat_display}" ]]; then
 			log::info "Enabling ${connector}"
-			kscreen-doctor output."${connector}".enable
+			log::info "$(kscreen-doctor output."${connector}".enable)"
 		fi
 	done
 	# Disable stream output last
@@ -165,7 +165,7 @@ function KDE::undo() {
 		log::info "Waiting before disabling stream display..."
 		sleep 1
 		log::info "Disabling ${_stream_display}"
-		kscreen-doctor output."${_stream_display}".disable
+		log::info "$(kscreen-doctor output."${_stream_display}".disable)"
 	else
 		log::info "Not doing anything else because Stream Display isn't different than Seat display (${_stream_display} != ${_seat_display})"
 	fi
