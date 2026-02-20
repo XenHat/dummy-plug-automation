@@ -174,52 +174,73 @@ function niri::get_display_configuration() {
 	_json_display_config=$(niri msg -j outputs)
 	mapfile -t outputs_list < <(echo "${_json_display_config}" | jq -r '.[] | .name')
 	log::info "outputs_list: ${outputs_list[*]}"
-	if echo "$_json_display_config" | jq "has(\"$_stream_display\")"; then
+	if echo "${_json_display_config}" | jq "has(\"${_stream_display}\")"; then
 		_has_stream_display=true
 	fi
-	log::info "Stream Display Present: $_has_stream_display"
-	if echo "$_json_display_config" | jq "has(\"$_seat_display\")"; then
+	if echo "${_json_display_config}" | jq "has(\"${_seat_display}\")"; then
 		_has_seat_display=true
 	fi
-	log::info "Seat   Display Present: $_has_seat_display"
+	log::info "Stream Display Present: ${_has_stream_display}"
+	log::info "Seat   Display Present: ${_has_seat_display}"
 }
 function niri::do() {
-	actionable_display="$_stream_display"
-	if [[ ${_stream_display} == "${_seat_display}" ]]; then
-		log::info "Stream and seat displays are the same, will not automate display switching."
-		actionable_display=${_seat_display}
-	fi
-	niri msg output "${actionable_display}" on
-	niri msg output "${actionable_display}" position "0x0"
-	niri msg output "${actionable_display}" mode "${_client_width}x${_client_height}"
-	sleep 2
-	if [[ ${_stream_display} != "${_seat_display}" ]]; then
-		log::info "Disabling $_seat_display"
+	# Niri is fickle, let's be extremely explicit about the behavior we want.
+	if [[ ${_has_stream_display} == "true" ]] && [[ ${_has_seat_display} == "false" ]]; then
+		# Only the stream display is present
+		log::info "Only stream display is present, moving over to stream display ${_stream_display}"
+		niri msg output "${_stream_display}" on
+		niri msg output "${_stream_display}" mode "${_client_width}x${_client_height}"
+		niri msg output "${_stream_display}" position "0x0"
+	elif [[ ${_has_stream_display} == "false" ]] && [[ ${_has_seat_display} == "true" ]]; then
+		# Only the seat display is present
+		log::info "Only seat display is present, moving over to seat display ${_seat_display}"
+		niri msg output "${_seat_display}" on
+		niri msg output "${_seat_display}" mode "${_client_width}x${_client_height}"
+		niri msg output "${_seat_display}" position "0x0"
+	elif [[ ${_has_stream_display} == "true" ]] && [[ ${_has_seat_display} == "true" ]]; then
+		# Both displays are present
+		log::info "Both displays are present, switching over to stream display ${_stream_display}"
+		niri msg output "${_stream_display}" on
+		niri msg output "${_stream_display}" mode "${_client_width}x${_client_height}"
+		niri msg output "${_stream_display}" position "0x0"
+		niri msg action focus-monitor "${_stream_display}"
+		niri msg action focus-workspace 1
+		log::info "Disabling ${_seat_display}"
 		niri msg output "${_seat_display}" off
+	elif [[ ${_has_stream_display} == "false" ]] && [[ ${_has_seat_display} == "false" ]]; then
+		# No display are present
+		log::warning "No display has been found, automation skipped!"
 	fi
-	sleep 1
-	niri msg action focus-monitor "${_stream_display}"
-	niri msg action focus-workspace 1
 	log::info "Done"
 }
 function niri::undo() {
-	actionable_display="$_seat_display"
-	if [[ ${_stream_display} == "${_seat_display}" ]]; then
-		log::info "Stream and seat displays are the same, will not automate display switching."
-		actionable_display=${_stream_display}
-	fi
-	niri msg output "${actionable_display}" on
-	niri msg output "${actionable_display}" position "0x0"
-	niri msg output "${actionable_display}" mode "${_client_width}x${_seat_resolution}"
-	sleep 1
-	if [[ ${_stream_display} != "${_seat_display}" ]]; then
-		log::info "Disabling $_stream_display"
-
+	# Niri is fickle, let's be extremely explicit about the behavior we want.
+	if [[ ${_has_stream_display} == "true" ]] && [[ ${_has_seat_display} == "false" ]]; then
+		# Only the stream display is present
+		log::info "Only stream display is present, moving over to stream display ${_stream_display}"
+		niri msg output "${_stream_display}" on
+		niri msg output "${_stream_display}" mode "${_seat_resolution}"
+		niri msg output "${_stream_display}" position "0x0"
+	elif [[ ${_has_stream_display} == "false" ]] && [[ ${_has_seat_display} == "true" ]]; then
+		# Only the seat display is present
+		log::info "Only seat display is present, moving over to seat display ${_seat_display}"
+		niri msg output "${_seat_display}" on
+		niri msg output "${_seat_display}" mode "${_seat_resolution}"
+		niri msg output "${_seat_display}" position "0x0"
+	elif [[ ${_has_stream_display} == "true" ]] && [[ ${_has_seat_display} == "true" ]]; then
+		# Both displays are present
+		log::info "Both displays are present, switching over to seat display ${_seat_display}"
+		niri msg output "${_seat_display}" on
+		niri msg output "${_seat_display}" mode "${_seat_resolution}"
+		niri msg output "${_seat_display}" position "0x0"
+		niri msg action focus-monitor "${_seat_display}"
+		niri msg action focus-workspace 1
+		log::info "Disabling ${_stream_display}"
 		niri msg output "${_stream_display}" off
+	elif [[ ${_has_stream_display} == "false" ]] && [[ ${_has_seat_display} == "false" ]]; then
+		# No display are present
+		log::warning "No display has been found, automation skipped!"
 	fi
-	sleep 1
-	niri msg action focus-monitor "${_seat_display}"
-	niri msg action focus-workspace 1
 	log::info "Done"
 }
 function mainloop() {
