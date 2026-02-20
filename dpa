@@ -203,6 +203,7 @@ function niri::do() {
 		niri msg output "${_stream_display}" on
 		niri msg output "${_stream_display}" mode "${_client_width}x${_client_height}"
 		niri msg output "${_stream_display}" position "0x0"
+		sleep 2
 		niri msg action focus-monitor "${_stream_display}"
 		niri msg action focus-workspace 1
 		log::info "Disabling ${_seat_display}"
