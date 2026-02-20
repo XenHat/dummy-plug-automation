@@ -189,19 +189,19 @@ function niri::do() {
 		# Only the stream display is present
 		log::info "Only stream display is present, moving over to stream display ${_stream_display}"
 		niri msg output "${_stream_display}" on
-		niri msg output "${_stream_display}" mode "${_client_width}x${_client_height}"
+		niri msg output "${_stream_display}" custom-mode "${_client_width}x${_client_height}@${_client_refresh_rate}"
 		niri msg output "${_stream_display}" position "0x0"
 	elif [[ ${_has_stream_display} == "false" ]] && [[ ${_has_seat_display} == "true" ]]; then
 		# Only the seat display is present
 		log::info "Only seat display is present, moving over to seat display ${_seat_display}"
 		niri msg output "${_seat_display}" on
-		niri msg output "${_seat_display}" mode "${_client_width}x${_client_height}"
+		niri msg output "${_seat_display}" custom-mode "${_client_width}x${_client_height}@${_client_refresh_rate}"
 		niri msg output "${_seat_display}" position "0x0"
 	elif [[ ${_has_stream_display} == "true" ]] && [[ ${_has_seat_display} == "true" ]]; then
 		# Both displays are present
 		log::info "Both displays are present, switching over to stream display ${_stream_display}"
 		niri msg output "${_stream_display}" on
-		niri msg output "${_stream_display}" mode "${_client_width}x${_client_height}"
+		niri msg output "${_stream_display}" custom-mode "${_client_width}x${_client_height}@${_client_refresh_rate}"
 		niri msg output "${_stream_display}" position "0x0"
 		sleep 2
 		log::info "Disabling ${_seat_display}"
