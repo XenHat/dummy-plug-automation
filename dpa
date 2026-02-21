@@ -77,6 +77,7 @@ readonly _default_hdr=${DEFAULT_HDR:-disable}
 _json_display_config=''
 _has_stream_display=false
 _has_seat_display=false
+_session_type=none
 # }
 function get_connectors_list() {
 	for edid in /sys/class/drm/card*-*-*/; do
@@ -248,6 +249,51 @@ function niri::undo() {
 	fi
 	log::info "Done"
 }
+generic::detect_session() {
+	local session_type
+	# Get systemd session type
+	# FIXME: hyprland doesn't show as "active", but as a seat on tty3
+	# user_sessions=$(loginctl list_sessions | grep "$USER")
+	if [[ -n $XDG_SESSION_TYPE ]]; then
+		session_type="$XDG_SESSION_TYPE"
+	else
+		# shellcheck disable=SC2312
+		log::warning "XDG_SESSION_TYPE is not set, using best-effort detection using loginctl"
+		if command -v loginctl 2>&1; then
+			session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep -v manager))" -p Type | awk -F= '{print $2}')
+		else
+			log::warning "loginctl not available, cannot autodetect"
+		fi
+
+	fi
+
+	if [[ -n $_session_type ]]; then
+		_session_type="$session_type"
+		return
+	else
+		environment=$(env)
+		if grep -qc "WAYLAND_DISPLAY" <<<"$environment"; then
+			_session_type=wayland
+			return
+		elif grep -qc "DISPLAY" <<<"$environment"; then
+			_session_type=x11
+			return
+		fi
+	fi
+	_session_type "none"
+}
+generic::wayland::do() {
+	log::info "UNIMPLEMENTED"
+}
+generic::wayland::undo() {
+	log::info "UNIMPLEMENTED"
+}
+generic::x11::do() {
+	log::info "UNIMPLEMENTED"
+}
+generic::x11::undo() {
+	log::info "UNIMPLEMENTED"
+}
 function mainloop() {
 	log::info "Global variables at start:
   _seat_resolution=${_seat_resolution}
@@ -271,12 +317,12 @@ function mainloop() {
 		;;
 	*)
 		if [[ -n ${XDG_CURRENT_DESKTOP} ]]; then
-			log::error "Desktop environment '${XDG_CURRENT_DESKTOP}' is not supported"
+			log::warning "Desktop environment '${XDG_CURRENT_DESKTOP}' has no environment-specific implementations, using generic RANDR-based automation"
 		else
 			log::warning "XDG_CURRENT_DESKTOP is not set!"
 		fi
-		log::warning "Cannot apply automation: no desktop environment handler available"
-		exit 0
+		generic::detect_session
+		generic::"$_session_type"::"$1"
 		;;
 	esac
 	if [[ ${_stream_display} == "" ]]; then
