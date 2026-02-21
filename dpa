@@ -204,10 +204,10 @@ function niri::do() {
 		niri msg output "${_stream_display}" on
 		niri msg output "${_stream_display}" custom-mode "${_client_width}x${_client_height}@${_client_refresh_rate}"
 		niri msg output "${_stream_display}" position "0x0"
-		sleep 2
+		# sleep 2
 		log::info "Disabling ${_seat_display}"
 		niri msg output "${_seat_display}" off
-		sleep 0.5
+		# sleep 0.5
 		niri msg action focus-monitor "${_stream_display}"
 		niri msg action focus-workspace 1
 	elif [[ ${_has_stream_display} == "false" ]] && [[ ${_has_seat_display} == "false" ]]; then
@@ -238,7 +238,7 @@ function niri::undo() {
 		niri msg output "${_seat_display}" on
 		niri msg output "${_seat_display}" mode "${_seat_resolution}@${_seat_refresh_rate}"
 		niri msg output "${_seat_display}" position "0x0"
-		sleep 2
+		# sleep 2
 		log::info "Disabling ${_stream_display}"
 		niri msg output "${_stream_display}" off
 		niri msg action focus-monitor "${_seat_display}"
