@@ -307,6 +307,8 @@ function mainloop() {
   _default_hdr=${_default_hdr}
   XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP}
   XDG_SESSION_DESKTOP=${XDG_SESSION_DESKTOP}
+  AMD_DEBUG=${AMD_DEBUG}
+  RADV_PERFTEST=${RADV_PERFTEST}
   "
 
 	case "${XDG_CURRENT_DESKTOP}" in
