@@ -82,8 +82,8 @@ _session_type=none
 function get_connectors_list() {
 	for edid in /sys/class/drm/card*-*-*/; do
 		case "${edid}" in *-Writeback-*) continue ;; *) ;; esac
-		edid="${edid%/}"        # Remove trailing slash
-		edid="${edid##*/}"      # Get basename
+		edid="${edid%/}"      # Remove trailing slash
+		edid="${edid##*/}"    # Get basename
 		echo "${edid#card*-}" # Remove card*- prefix using glob pattern
 	done
 }
@@ -91,8 +91,8 @@ function get_enabled_connectors_list() {
 	for edid in /sys/class/drm/card*-*-*/; do
 		case "${edid}" in *-Writeback-*) continue ;; *) ;; esac
 		if [[ "$(<"${edid}"/enabled)" == "disabled" ]]; then continue; fi
-		edid="${edid%/}"        # Remove trailing slash
-		edid="${edid##*/}"      # Get basename
+		edid="${edid%/}"      # Remove trailing slash
+		edid="${edid##*/}"    # Get basename
 		echo "${edid#card*-}" # Remove card*- prefix using glob pattern
 	done
 }
@@ -336,5 +336,3 @@ function mainloop() {
 	# log::info "Reminder: If your client gets a black screen, try rebooting the host"
 }
 mainloop "$@"
-echo 'yeah for real this is " ${nuts
-
