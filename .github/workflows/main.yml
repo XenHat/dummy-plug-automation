@@ -8,7 +8,7 @@ jobs:
       -  uses: ludeeus/action-shellcheck@2.0.0
          with:
       # A space separated list of additional filename to check
-          additional_files: # optional, default is 
+          additional_files: dpa
           severity: warning
           check_together: true
           
