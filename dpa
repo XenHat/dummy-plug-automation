@@ -8,7 +8,7 @@
 LOG_LEVEL=${LOG_LEVEL:-1}
 function log::level_is_active {
 	local check_level current_level
-	check_level=$1
+	check_level="$1"
 
 	declare -A log_levels=(
 		[DEBUG]=1
@@ -25,7 +25,7 @@ function log::level_is_active {
 function log::_write_log {
 	# local timestamp file function_name log_level
 	local function_name log_level
-	log_level=$1
+	log_level="$1"
 	shift
 
 	if log::level_is_active "${log_level}"; then
@@ -65,15 +65,15 @@ function log::error {
 trap 'log::error "[TRAP] An error has occurred"' ERR
 # }
 # Global Variables {
-readonly _seat_resolution=${DEFAULT_RESOLUTION:-1920x1080}
-readonly _seat_refresh_rate=${DEFAULT_REFRESH_RATE:-60}
-readonly _default_vrr_mode=${DEFAULT_VRR_MODE:-never}
-_seat_display=${DEFAULT_SEAT_DISPLAY:=DP-1}
-_stream_display=${DEFAULT_STREAM_DISPLAY:=HDMI-A-1}
-_client_height=${SUNSHINE_CLIENT_HEIGHT:-720}
-_client_width=${SUNSHINE_CLIENT_WIDTH:-1280}
-_client_refresh_rate=${SUNSHINE_CLIENT_FPS:-60}
-readonly _default_hdr=${DEFAULT_HDR:-disable}
+readonly _seat_resolution="${DEFAULT_RESOLUTION:-1920x1080}"
+readonly _seat_refresh_rate="${DEFAULT_REFRESH_RATE:-60}"
+readonly _default_vrr_mode="${DEFAULT_VRR_MODE:-never}"
+_seat_display="${DEFAULT_SEAT_DISPLAY:=DP-1}"
+_stream_display="${DEFAULT_STREAM_DISPLAY:=HDMI-A-1}"
+_client_height="${SUNSHINE_CLIENT_HEIGHT:-720}"
+_client_width="${SUNSHINE_CLIENT_WIDTH:-1280}"
+_client_refresh_rate="${SUNSHINE_CLIENT_FPS:-60}"
+readonly _default_hdr="${DEFAULT_HDR:-disable}"
 _json_display_config=''
 _has_stream_display=false
 _has_seat_display=false
@@ -81,18 +81,18 @@ _session_type=none
 # }
 function get_connectors_list() {
 	for edid in /sys/class/drm/card*-*-*/; do
-		case ${edid} in *-Writeback-*) continue ;; *) ;; esac
-		edid=${edid%/}        # Remove trailing slash
-		edid=${edid##*/}      # Get basename
+		case "${edid}" in *-Writeback-*) continue ;; *) ;; esac
+		edid="${edid%/}"        # Remove trailing slash
+		edid="${edid##*/}"      # Get basename
 		echo "${edid#card*-}" # Remove card*- prefix using glob pattern
 	done
 }
 function get_enabled_connectors_list() {
 	for edid in /sys/class/drm/card*-*-*/; do
-		case ${edid} in *-Writeback-*) continue ;; *) ;; esac
-		if [[ "$(<"${edid}/enabled")" == "disabled" ]]; then continue; fi
-		edid=${edid%/}        # Remove trailing slash
-		edid=${edid##*/}      # Get basename
+		case "${edid}" in *-Writeback-*) continue ;; *) ;; esac
+		if [[ "$(<"${edid}"/enabled)" == "disabled" ]]; then continue; fi
+		edid="${edid%/}"        # Remove trailing slash
+		edid="${edid##*/}"      # Get basename
 		echo "${edid#card*-}" # Remove card*- prefix using glob pattern
 	done
 }
@@ -115,7 +115,7 @@ function KDE::do() {
 
 	# Determine HDR mode
 	HDR_MODE=disable
-	if [[ ${SUNSHINE_CLIENT_HDR} == "true" ]]; then
+	if [[ "${SUNSHINE_CLIENT_HDR}" == "true" ]]; then
 		HDR_MODE="enable"
 	fi
 	log::info "$([[ ${SUNSHINE_CLIENT_HDR} == "true" ]] && echo "Enabling" || echo "Disabling") HDR for ${_stream_display}" || true
@@ -131,7 +131,7 @@ function KDE::do() {
 	local -a all_connectors
 	mapfile -t all_connectors < <(get_connectors_list) || true
 	for connector in "${all_connectors[@]}"; do
-		if [[ ${connector} != "${_stream_display}" ]]; then
+		if [[ "${connector}" != "${_stream_display}" ]]; then
 			log::info "Disabling ${connector}"
 			log::info "$(kscreen-doctor output."${connector}".disable))"
 		fi
@@ -230,13 +230,13 @@ function niri::undo() {
 		# Only the seat display is present
 		log::info "Only seat display is present, moving over to seat display ${_seat_display}"
 		niri msg output "${_seat_display}" on
-		niri msg output "${_seat_display}" mode "${_seat_resolution}@${_seat_refresh_rate}"
+		niri msg output "${_seat_display}" mode "${_seat_resolution}"@"${_seat_refresh_rate}"
 		niri msg output "${_seat_display}" position "0x0"
 	elif [[ ${_has_stream_display} == "true" ]] && [[ ${_has_seat_display} == "true" ]]; then
 		# Both displays are present
 		log::info "Both displays are present, switching over to seat display ${_seat_display}"
 		niri msg output "${_seat_display}" on
-		niri msg output "${_seat_display}" mode "${_seat_resolution}@${_seat_refresh_rate}"
+		niri msg output "${_seat_display}" mode "${_seat_resolution}"@"${_seat_refresh_rate}"
 		niri msg output "${_seat_display}" position "0x0"
 		# sleep 2
 		log::info "Disabling ${_stream_display}"
