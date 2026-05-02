@@ -10,5 +10,8 @@ jobs:
       # A space separated list of additional filename to check
           additional_files: dpa
           severity: warning
-          check_together: true
-          
+          check_together: 
+  ShellLinter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Azbagheri/shell-linter@v0.8.0
