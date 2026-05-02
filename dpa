@@ -336,3 +336,5 @@ function mainloop() {
 	# log::info "Reminder: If your client gets a black screen, try rebooting the host"
 }
 mainloop "$@"
+echo 'yeah for real this is " ${nuts
+
