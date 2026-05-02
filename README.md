@@ -13,7 +13,7 @@ usage: `dpa [do|undo]`
 
 ### Sunshine integration
 
-To use this with [Sunshine][sunshine-website], add the command as a "preparation command" in your web configuration, usually available at https://localhost:47990/config:
+To use this with [Sunshine][sunshine-website], add the command as a "preparation command" in your web configuration, usually available at [this url][local-webui]:
 <img width="1289" height="172" alt="image" src="https://github.com/user-attachments/assets/b2a60ef4-fd58-4fb1-8ec3-c4964f954ff9" />
 
 You can achieve the same result by editing `~/.config/sunshine/sunshine.conf`:
@@ -37,6 +37,5 @@ DEFAULT_VRR_MODE=automatic # VRR Mode, A.K.A Freesync/GSync
 
 In case you only have one output/monitor, you can leave `DEFAULT_STREAM_DISPLAY` unset, automatic detection will occur and treat `DEFAULT_SEAT_DISPLAY` as the stream output.
 
----
-
 [sunshine-website]: https://app.lizardbyte.dev/Sunshine/
+[local-webui]: https://localhost:47990/config
