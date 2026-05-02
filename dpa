@@ -29,15 +29,15 @@ function log::_write_log {
 	shift
 
 	if log::level_is_active "${log_level}"; then
-		# timestamp=$(date +'%y.%m.%d %H:%M:%S')
+		timestamp=$(date +'%y-%m-%d %H:%M:%S'\''%3N')
 		# file="${BASH_SOURCE[2]##*/}"
 		function_name="${FUNCNAME[2]}"
-		logger "dpa::$(printf '%s [%s]: %s\n' \
-			"${log_level}" "${function_name}" "${*}")"
+		message_string="$(printf '[%s] %s dpa::%s %s\n' \
+			"${timestamp}" "${log_level}" "${function_name}" "${*}")"
 
-		printf >&2 '%s [%s]: %s\n' \
-			"${log_level}" "${function_name}" "${*}"
-		# ;;
+		logger "${message_string}"
+
+		printf >&2 "${message_string}\n"
 	fi
 }
 function log::info {
