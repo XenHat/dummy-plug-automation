@@ -11,7 +11,6 @@ if pgrep -x Hyprland >/dev/null 2>&1; then
     echo "Disabling Dummy Plug"
     hyprctl keyword monitor HDMI-A-1,disabled
   fi
-  continue
 fi
 get_session_type() {
   # Get systemd session type

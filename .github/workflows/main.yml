@@ -1,8 +1,23 @@
-name: Code Quality Check
-# run-name: Checking code quality
-on: [push]
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+  push:
+    branches:
+      - main
+
+name: "Trigger: Push action"
+permissions: {}
+
 jobs:
-  ShellLinter:
+  shellcheck:
+    name: Shellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: Azbagheri/shell-linter@v0.8.0
+      - uses: actions/checkout@v4
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
