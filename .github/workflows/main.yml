@@ -1,16 +1,7 @@
 name: Code Quality Check
-run-name: ${{ github.actor }} is learning GitHub Actions
+# run-name: Checking code quality
 on: [push]
 jobs:
-  shellcheck:
-    runs-on: ubuntu-latest
-    steps:
-      -  uses: ludeeus/action-shellcheck@2.0.0
-         with:
-      # A space separated list of additional filename to check
-          additional_files: dpa
-          severity: warning
-          check_together: 
   ShellLinter:
     runs-on: ubuntu-latest
     steps:
