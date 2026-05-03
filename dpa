@@ -37,7 +37,7 @@ function log::_write_log {
 
 		logger "${message_string}"
 
-		printf >&2 "${message_string}\n"
+		printf >&2 "%s\n" "${message_string}"
 	fi
 }
 function log::info {
