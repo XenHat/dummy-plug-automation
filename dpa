@@ -254,28 +254,28 @@ generic::detect_session() {
 	# Get systemd session type
 	# FIXME: hyprland doesn't show as "active", but as a seat on tty3
 	# user_sessions=$(loginctl list_sessions | grep "$USER")
-	if [[ -n $XDG_SESSION_TYPE ]]; then
-		session_type="$XDG_SESSION_TYPE"
+	if [[ -n ${XDG_SESSION_TYPE} ]]; then
+		session_type="${XDG_SESSION_TYPE}"
 	else
 		# shellcheck disable=SC2312
 		log::warning "XDG_SESSION_TYPE is not set, using best-effort detection using loginctl"
 		if command -v loginctl 2>&1; then
-			session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "$USER" | grep -v manager))" -p Type | awk -F= '{print $2}')
+			session_type=$(loginctl 2>/dev/null show-session "$(awk '/tty/ {print $1}' <(loginctl list-sessions | grep "${USER}" | grep -v manager))" -p Type | awk -F= '{print $2}')
 		else
 			log::warning "loginctl not available, cannot autodetect"
 		fi
 
 	fi
 
-	if [[ -n $_session_type ]]; then
-		_session_type="$session_type"
+	if [[ -n ${_session_type} ]]; then
+		_session_type="${session_type}"
 		return
 	else
 		environment=$(env)
-		if grep -qc "WAYLAND_DISPLAY" <<<"$environment"; then
+		if grep -qc "WAYLAND_DISPLAY" <<<"${environment}"; then
 			_session_type=wayland
 			return
-		elif grep -qc "DISPLAY" <<<"$environment"; then
+		elif grep -qc "DISPLAY" <<<"${environment}"; then
 			_session_type=x11
 			return
 		fi
@@ -324,7 +324,7 @@ function mainloop() {
 			log::warning "XDG_CURRENT_DESKTOP is not set!"
 		fi
 		generic::detect_session
-		generic::"$_session_type"::"$1"
+		generic::"${_session_type}"::"$1"
 		;;
 	esac
 	if [[ ${_stream_display} == "" ]]; then
