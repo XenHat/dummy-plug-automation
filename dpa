@@ -115,7 +115,7 @@ function KDE::do() {
 
 	# Determine HDR mode
 	HDR_MODE=disable
-	if [[ "${SUNSHINE_CLIENT_HDR}" == "true" ]]; then
+	if [[ ${SUNSHINE_CLIENT_HDR} == "true" ]]; then
 		HDR_MODE="enable"
 	fi
 	log::info "$([[ ${SUNSHINE_CLIENT_HDR} == "true" ]] && echo "Enabling" || echo "Disabling") HDR for ${_stream_display}" || true
@@ -131,7 +131,7 @@ function KDE::do() {
 	local -a all_connectors
 	mapfile -t all_connectors < <(get_connectors_list) || true
 	for connector in "${all_connectors[@]}"; do
-		if [[ "${connector}" != "${_stream_display}" ]]; then
+		if [[ ${connector} != "${_stream_display}" ]]; then
 			log::info "Disabling ${connector}"
 			log::info "$(kscreen-doctor output."${connector}".disable))"
 		fi
