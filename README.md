@@ -37,5 +37,15 @@ DEFAULT_VRR_MODE=automatic # VRR Mode, A.K.A Freesync/GSync
 
 In case you only have one output/monitor, you can leave `DEFAULT_STREAM_DISPLAY` unset, automatic detection will occur and treat `DEFAULT_SEAT_DISPLAY` as the stream output.
 
+## Star History
+
+<a href="https://www.star-history.com/?repos=xenhat%2Fdummy-plug-automation&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=xenhat/dummy-plug-automation&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=xenhat/dummy-plug-automation&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=xenhat/dummy-plug-automation&type=date&legend=top-left" />
+ </picture>
+</a>
+
 [sunshine-website]: https://app.lizardbyte.dev/Sunshine/
 [local-webui]: https://localhost:47990/config
