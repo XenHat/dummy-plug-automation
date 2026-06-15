@@ -7,6 +7,19 @@ Automation for remote streaming using a dummy plug on Linux, supporting both Xor
 - [x] KDE5/6
 - [x] Niri
 
+## Supported Moonlight client features
+
+- [x] HDR mode change
+- [x] Refresh rate change
+- [x] Resolution change
+- [ ] Optimize game performance (not implemented yet)
+
+## Extra features
+
+- [x] VRR mode change
+- [x] Disable all displays except one on stream start and re-enable them on stream end
+- [x] Revert desktop to a specified resolution on stream end
+
 ## Usage
 
 usage: `dpa [do|undo]`
