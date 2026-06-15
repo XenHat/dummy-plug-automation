@@ -79,6 +79,7 @@ _json_display_config=''
 _has_stream_display=false
 _has_seat_display=false
 _session_type=none
+_res_override=''
 # }
 function get_connectors_list() {
 	for edid in /sys/class/drm/card*-*-*/; do
@@ -294,6 +295,36 @@ generic::x11::do() {
 generic::x11::undo() {
 	log::info "UNIMPLEMENTED"
 }
+function handle_arguments() {
+	Handle client resolution override via a command-line parameter
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			-r|--res-override)
+				if [[ -z "${2:-}" ]]; then
+					log::error "Error: --res-override requires a non-empty argument." >&2
+					exit 1
+				fi
+				RES_OVERRIDE="$2"
+				shift 2
+				;;
+				--res-override=*)
+				RES_OVERRIDE="${1#*=}"
+				shift
+				;;
+			*)
+				POSITIONAL_PARAMS+=("$1")
+				shift
+				;;
+		esac
+	done
+	if [[ -n "$RES_OVERRIDE" ]]; then
+	log::warning "Overriding resolution to '${RES_OVERRIDE}'"
+	_client_width="${RES_OVERRIDE%x*}"
+	_client_height="${RES_OVERRIDE#*x}"
+	unset RES_OVERRIDE
+	fi
+}
+
 function mainloop() {
 	log::info "Global variables at start:
 	_seat_resolution=${_seat_resolution}
@@ -334,4 +365,5 @@ function mainloop() {
 	unset _preferred_monitor _session_type _primary _client_height _client_width _refresh
 	# log::info "Reminder: If your client gets a black screen, try rebooting the host"
 }
+handle_arguments "$@"
 mainloop "$@"
