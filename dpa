@@ -68,12 +68,13 @@ trap 'log::error "[TRAP] An error has occurred"' ERR
 readonly _seat_resolution="${DEFAULT_RESOLUTION:-1920x1080}"
 readonly _seat_refresh_rate="${DEFAULT_REFRESH_RATE:-60}"
 readonly _default_vrr_mode="${DEFAULT_VRR_MODE:-never}"
-_seat_display="${DEFAULT_SEAT_DISPLAY:=DP-1}"
-_stream_display="${DEFAULT_STREAM_DISPLAY:=HDMI-A-1}"
+readonly _default_hdr="${DEFAULT_HDR:-disable}"
+_seat_display="${DEFAULT_SEAT_DISPLAY:-DP-3}"
+_stream_display="${DEFAULT_STREAM_DISPLAY:-HDMI-A-1}"
 _client_height="${SUNSHINE_CLIENT_HEIGHT:-720}"
 _client_width="${SUNSHINE_CLIENT_WIDTH:-1280}"
 _client_refresh_rate="${SUNSHINE_CLIENT_FPS:-60}"
-readonly _default_hdr="${DEFAULT_HDR:-disable}"
+_client_hdr="${SUNSHINE_CLIENT_HDR:-false}"
 _json_display_config=''
 _has_stream_display=false
 _has_seat_display=false
@@ -98,7 +99,7 @@ function get_enabled_connectors_list() {
 }
 function KDE::get_display_configuration() {
 	if [[ -z ${DEFAULT_STREAM_DISPLAY} ]] || [[ -z ${DEFAULT_SEAT_DISPLAY} ]]; then
-		log::warning "Please set DEFAULT_STREAM_DISPLAY and DEFAULT_SEAT_DISPLAY"
+		log::warning "To override which monitor is used for streaming, please set DEFAULT_STREAM_DISPLAY and DEFAULT_SEAT_DISPLAY"
 		log::warning "Automation is a little fragile at the moment"
 	fi
 }
@@ -115,13 +116,12 @@ function KDE::do() {
 
 	# Determine HDR mode
 	HDR_MODE=disable
-	if [[ ${SUNSHINE_CLIENT_HDR} == "true" ]]; then
+	if [[ ${_client_hdr} == "true" ]]; then
 		HDR_MODE="enable"
 	fi
-	log::info "$([[ ${SUNSHINE_CLIENT_HDR} == "true" ]] && echo "Enabling" || echo "Disabling") HDR for ${_stream_display}" || true
-
-	log::info "Setting '${_stream_display}' to ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${adjusted_hz}"
-	log::info "$(kscreen-doctor output."${_stream_display}".mode."${SUNSHINE_CLIENT_WIDTH}"x"${SUNSHINE_CLIENT_HEIGHT}"@"${adjusted_hz}")"
+	log::info "$([[ ${_client_hdr} == "true" ]] && echo "Enabling" || echo "Disabling") HDR for ${_stream_display}" || true
+	log::info "Setting '${_stream_display}' to ${_client_width}x${_client_height}@${adjusted_hz}"
+	log::info "$(kscreen-doctor output."${_stream_display}".mode."${_client_width}"x"${_client_height}"@"${adjusted_hz}")"
 	log::info "Configuring HDR/WCG for ${_stream_display}"
 	log::info "$(kscreen-doctor output."${_stream_display}".hdr."${HDR_MODE}" output."${_stream_display}".wcg."${HDR_MODE}")"
 
@@ -296,20 +296,19 @@ generic::x11::undo() {
 }
 function mainloop() {
 	log::info "Global variables at start:
-  _seat_resolution=${_seat_resolution}
-  _seat_refresh_rate=${_seat_refresh_rate}
-  _default_vrr_mode=${_default_vrr_mode}
-  _seat_display=${_seat_display}
-  _stream_display=${_stream_display}
-  _client_height=${_client_height}
-  _client_width=${_client_width}
-  _client_refresh_rate=${_client_refresh_rate}
-  _default_hdr=${_default_hdr}
-  XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP}
-  XDG_SESSION_DESKTOP=${XDG_SESSION_DESKTOP}
-  AMD_DEBUG=${AMD_DEBUG}
-  RADV_PERFTEST=${RADV_PERFTEST}
-  "
+	_seat_resolution=${_seat_resolution}
+	_seat_refresh_rate=${_seat_refresh_rate}
+	_default_vrr_mode=${_default_vrr_mode}
+	_seat_display=${_seat_display}
+	_stream_display=${_stream_display}
+	_client_height=${_client_height}
+	_client_width=${_client_width}
+	_client_refresh_rate=${_client_refresh_rate}
+	_default_hdr=${_default_hdr}
+	XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP}
+	XDG_SESSION_DESKTOP=${XDG_SESSION_DESKTOP}
+	AMD_DEBUG=${AMD_DEBUG}
+	RADV_PERFTEST=${RADV_PERFTEST}"
 
 	case "${XDG_CURRENT_DESKTOP}" in
 	"GNOME" | "KDE" | "niri")
