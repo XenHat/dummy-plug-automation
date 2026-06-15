@@ -34,6 +34,12 @@ You can achieve the same result by editing `~/.config/sunshine/sunshine.conf`:
 ```conf
 global_prep_cmd = [{"do":"sh -c \"/path/to/dpa do\"","undo":"sh -c \"/path/to/dpa undo\""}]
 ```
+### Overriding the client resolution
+
+To have a different resolution for a specific app, add the script as the application-specific do/undo command, with the added `--res-override=WIDTHxHEIGHT` parameter and untick the "Global Prep Commands":
+
+<img width="1146" height="644" alt="Image" src="https://github.com/user-attachments/assets/2ac42b98-2089-41c3-93df-82aaf48b77cc" />
+
 
 ## Notes
 
