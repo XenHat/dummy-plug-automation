@@ -250,6 +250,38 @@ function niri::undo() {
 	fi
 	log::info "Done"
 }
+generic::get_display_configuration() {
+	if ! command -v wlr-randr &>/dev/null; then
+		log::warning "wlr-randr not available, cannot detect display configuration"
+		_has_stream_display=false
+		_has_seat_display=false
+		return 1
+	fi
+
+	if ! command -v jq &>/dev/null; then
+		log::warning "jq not available, cannot parse wlr-randr output"
+		_has_stream_display=false
+		_has_seat_display=false
+		return 1
+	fi
+
+	_json_display_config=$(wlr-randr --json 2>/dev/null)
+	if [[ -z "${_json_display_config}" ]]; then
+		log::warning "wlr-randr --json returned empty output"
+		_has_stream_display=false
+		_has_seat_display=false
+		return 1
+	fi
+
+	if echo "${_json_display_config}" | jq -e "has(\"${_stream_display}\")" &>/dev/null; then
+		_has_stream_display=true
+	fi
+	if echo "${_json_display_config}" | jq -e "has(\"${_seat_display}\")" &>/dev/null; then
+		_has_seat_display=true
+	fi
+	log::info "Stream Display Present: ${_has_stream_display}"
+	log::info "Seat   Display Present: ${_has_seat_display}"
+}
 generic::detect_session() {
 	local session_type
 	# Get systemd session type
@@ -284,16 +316,169 @@ generic::detect_session() {
 	_session_type "none"
 }
 generic::wayland::do() {
-	log::info "UNIMPLEMENTED"
+	if ! command -v wlr-randr &>/dev/null; then
+		log::error "wlr-randr not found, cannot configure Wayland outputs"
+		return 1
+	fi
+
+	log::info "Enabling ${_stream_display} for streaming"
+	wlr-randr --output "${_stream_display}" --on
+
+	local adjusted_hz
+	adjusted_hz=$(printf '%.0f' "${_client_refresh_rate}")
+	log::info "Configuring ${_stream_display} to ${_client_width}x${_client_height}@${adjusted_hz}"
+	wlr-randr --output "${_stream_display}" --custom-mode "${_client_width}x${_client_height}@${adjusted_hz}"
+
+	if [[ ${_has_seat_display} == "true" ]]; then
+		log::info "Waiting before disabling seat display..."
+		sleep 1
+		log::info "Disabling ${_seat_display}"
+		wlr-randr --output "${_seat_display}" --off
+	fi
+
+	log::info "Wayland do complete"
 }
 generic::wayland::undo() {
-	log::info "UNIMPLEMENTED"
+	if ! command -v wlr-randr &>/dev/null; then
+		log::error "wlr-randr not found, cannot restore Wayland outputs"
+		return 1
+	fi
+
+	local adjusted_hz
+	adjusted_hz=$(printf '%.0f' "${_seat_refresh_rate}")
+
+	if [[ ${_has_stream_display} == "true" ]] && [[ ${_has_seat_display} == "false" ]]; then
+		log::info "Only stream display is present, restoring to ${_stream_display}"
+		wlr-randr --output "${_stream_display}" --on
+		wlr-randr --output "${_stream_display}" --mode "${_seat_resolution}@${adjusted_hz}"
+	elif [[ ${_has_stream_display} == "false" ]] && [[ ${_has_seat_display} == "true" ]]; then
+		log::info "Only seat display is present, restoring ${_seat_display}"
+		wlr-randr --output "${_seat_display}" --on
+		wlr-randr --output "${_seat_display}" --mode "${_seat_resolution}@${adjusted_hz}"
+	elif [[ ${_has_stream_display} == "true" ]] && [[ ${_has_seat_display} == "true" ]]; then
+		log::info "Both displays present, restoring ${_seat_display}"
+		wlr-randr --output "${_seat_display}" --on
+		wlr-randr --output "${_seat_display}" --mode "${_seat_resolution}@${adjusted_hz}"
+		log::info "Waiting before disabling stream display..."
+		sleep 1
+		log::info "Disabling ${_stream_display}"
+		wlr-randr --output "${_stream_display}" --off
+	elif [[ ${_has_stream_display} == "false" ]] && [[ ${_has_seat_display} == "false" ]]; then
+		log::warning "No display found, restore skipped"
+	fi
+
+	log::info "Wayland undo complete"
+}
+generic::get_x11_display_configuration() {
+	if [[ -z ${DISPLAY} ]]; then
+		log::warning "DISPLAY is not set, cannot detect x11 display configuration"
+		_has_stream_display=false
+		_has_seat_display=false
+		return 1
+	fi
+
+	if ! command -v xrandr &>/dev/null; then
+		log::warning "xrandr not available, cannot detect x11 display configuration"
+		_has_stream_display=false
+		_has_seat_display=false
+		return 1
+	fi
+
+	local xrandr_output
+	xrandr_output=$(xrandr -q 2>/dev/null)
+	if [[ -z "${xrandr_output}" ]]; then
+		log::warning "xrandr -q returned empty output"
+		_has_stream_display=false
+		_has_seat_display=false
+		return 1
+	fi
+
+	if echo "${xrandr_output}" | grep -qP "^${_stream_display}\s+connected"; then
+		_has_stream_display=true
+	fi
+	if echo "${xrandr_output}" | grep -qP "^${_seat_display}\s+connected"; then
+		_has_seat_display=true
+	fi
+	log::info "Stream Display Present: ${_has_stream_display}"
+	log::info "Seat   Display Present: ${_has_seat_display}"
 }
 generic::x11::do() {
-	log::info "UNIMPLEMENTED"
+	if [[ -z ${DISPLAY} ]]; then
+		log::error "DISPLAY not set, cannot configure x11 outputs"
+		return 1
+	fi
+
+	if ! command -v xrandr &>/dev/null; then
+		log::error "xrandr not found, cannot configure x11 outputs"
+		return 1
+	fi
+
+	log::info "Enabling ${_stream_display} for streaming"
+	xrandr --output "${_stream_display}" --auto
+
+	local mode_string="${_client_width}x${_client_height}"
+	log::info "Configuring ${_stream_display} to ${mode_string}"
+	if xrandr -q 2>/dev/null | grep -qP "^${_stream_display}\s+connected\s+.*${mode_string}"; then
+		log::info "Mode ${mode_string} available, using --mode"
+		xrandr --output "${_stream_display}" --mode "${mode_string}"
+	else
+		log::warning "Mode ${mode_string} not in xrandr list, using --auto (preferred mode)"
+	fi
+
+	if [[ ${_has_seat_display} == "true" ]]; then
+		log::info "Waiting before disabling seat display..."
+		sleep 1
+		log::info "Disabling ${_seat_display}"
+		xrandr --output "${_seat_display}" --off
+	fi
+
+	log::info "x11 do complete"
 }
 generic::x11::undo() {
-	log::info "UNIMPLEMENTED"
+	if [[ -z ${DISPLAY} ]]; then
+		log::error "DISPLAY not set, cannot restore x11 outputs"
+		return 1
+	fi
+
+	if ! command -v xrandr &>/dev/null; then
+		log::error "xrandr not found, cannot restore x11 outputs"
+		return 1
+	fi
+
+	local adjusted_hz
+	adjusted_hz=$(printf '%.0f' "${_seat_refresh_rate}")
+	local mode_string="${_seat_resolution}@${adjusted_hz}"
+
+	if [[ ${_has_stream_display} == "true" ]] && [[ ${_has_seat_display} == "false" ]]; then
+		log::info "Only stream display is present, restoring to ${_stream_display}"
+		xrandr --output "${_stream_display}" --auto
+		if xrandr -q 2>/dev/null | grep -qP "^${_stream_display}\s+connected\s+.*${_seat_resolution}"; then
+			xrandr --output "${_stream_display}" --mode "${_seat_resolution}"
+			xrandr --output "${_stream_display}" --refresh "${adjusted_hz}"
+		fi
+	elif [[ ${_has_stream_display} == "false" ]] && [[ ${_has_seat_display} == "true" ]]; then
+		log::info "Only seat display is present, restoring ${_seat_display}"
+		xrandr --output "${_seat_display}" --auto
+		if xrandr -q 2>/dev/null | grep -qP "^${_seat_display}\s+connected\s+.*${_seat_resolution}"; then
+			xrandr --output "${_seat_display}" --mode "${_seat_resolution}"
+			xrandr --output "${_seat_display}" --refresh "${adjusted_hz}"
+		fi
+	elif [[ ${_has_stream_display} == "true" ]] && [[ ${_has_seat_display} == "true" ]]; then
+		log::info "Both displays present, restoring ${_seat_display}"
+		xrandr --output "${_seat_display}" --auto
+		if xrandr -q 2>/dev/null | grep -qP "^${_seat_display}\s+connected\s+.*${_seat_resolution}"; then
+			xrandr --output "${_seat_display}" --mode "${_seat_resolution}"
+			xrandr --output "${_seat_display}" --refresh "${adjusted_hz}"
+		fi
+		log::info "Waiting before disabling stream display..."
+		sleep 1
+		log::info "Disabling ${_stream_display}"
+		xrandr --output "${_stream_display}" --off
+	elif [[ ${_has_stream_display} == "false" ]] && [[ ${_has_seat_display} == "false" ]]; then
+		log::warning "No display found, restore skipped"
+	fi
+
+	log::info "x11 undo complete"
 }
 function handle_arguments() {
 	Handle client resolution override via a command-line parameter
@@ -354,6 +539,11 @@ function mainloop() {
 			log::warning "XDG_CURRENT_DESKTOP is not set!"
 		fi
 		generic::detect_session
+		if [[ "${_session_type}" == "wayland" ]]; then
+			generic::get_display_configuration
+		elif [[ "${_session_type}" == "x11" ]]; then
+			generic::get_x11_display_configuration
+		fi
 		generic::"${_session_type}"::"$1"
 		;;
 	esac
