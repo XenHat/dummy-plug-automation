@@ -2,6 +2,16 @@
 
 Automation for remote streaming using a dummy plug on Linux, supporting both Xorg/X11 and Wayland.
 
+## What is this for?
+
+> My setup is essentially this: I use my main computer both as a normal machine I sit in front of, and a "cloud gaming" machine where I use a headless display (Dummy plug, but can be done in software too) to avoid leaving my monitors enabled when I game remotely.
+ 
+> When I connect my moonlight client to the PC, it runs my script and disables all monitors except the dummy plug, changes the resolution to the client's resolution to avoid scaling lag and other issues, then configures HDR/refresh rate accordingly as well.
+
+> When I end the session, the script does what it can to undo the changes and restore the setup as it was before the stream started.
+
+_The wording above is from a conversation and will likely be refined over time_.
+
 ## Supported Desktop Environments and Window Managers
 
 - [x] KDE5/6
