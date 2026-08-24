@@ -44,6 +44,35 @@ You can achieve the same result by editing `~/.config/sunshine/sunshine.conf`:
 ```conf
 global_prep_cmd = [{"do":"sh -c \"/path/to/dpa do\"","undo":"sh -c \"/path/to/dpa undo\""}]
 ```
+
+The display variables must be available to the Sunshine process. Putting them
+in `~/.profile` only works when Sunshine is launched from a login shell; it is
+not reliable for a `systemd --user` Sunshine service. For a user service, use a
+small wrapper and reference the wrapper from Sunshine:
+
+```bash
+#!/usr/bin/env bash
+export DEFAULT_SEAT_DISPLAY=DP-2
+export DEFAULT_STREAM_DISPLAY=HDMI-A-2
+export DEFAULT_KEEP_DISPLAYS="DP-2 HDMI-A-1"
+export DEFAULT_RESOLUTION=2560x1440
+export DEFAULT_REFRESH_RATE=165
+export DEFAULT_VRR_MODE=automatic
+export DEFAULT_HDR=disable
+exec /path/to/dpa "$@"
+```
+
+Save it as `~/.local/bin/dpa-sunshine`, make it executable, and use it in the
+Sunshine preparation command:
+
+```conf
+global_prep_cmd = [{"do":"sh -c \"$HOME/.local/bin/dpa-sunshine do\"","undo":"sh -c \"$HOME/.local/bin/dpa-sunshine undo\""}]
+```
+
+Alternatively, import variables into the user manager before starting
+Sunshine, or use `~/.config/environment.d/` and log in again. The wrapper is
+preferred because it keeps the display configuration next to the commands
+that use it.
 ### Overriding the client resolution
 
 To have a different resolution for a specific app, add the script as the application-specific do/undo command, with the added `--res-override=WIDTHxHEIGHT` parameter and untick the "Global Prep Commands":
@@ -63,6 +92,10 @@ DEFAULT_RESOLUTION=2560x1440
 DEFAULT_REFRESH_RATE=240 # The refresh rate to attempt to set when quitting the stream session
 DEFAULT_VRR_MODE=automatic # VRR Mode, A.K.A Freesync/GSync
 ```
+
+These variables are suitable for interactive shell use. When Sunshine runs as
+a `systemd --user` service, provide them through a wrapper as described above
+instead of relying only on `~/.profile`.
 
 In case you only have one output/monitor, you can leave `DEFAULT_STREAM_DISPLAY` unset, automatic detection will occur and treat `DEFAULT_SEAT_DISPLAY` as the stream output.
 
