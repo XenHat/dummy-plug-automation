@@ -69,6 +69,7 @@ readonly _seat_resolution="${DEFAULT_RESOLUTION:-1920x1080}"
 readonly _seat_refresh_rate="${DEFAULT_REFRESH_RATE:-60}"
 readonly _default_vrr_mode="${DEFAULT_VRR_MODE:-never}"
 readonly _default_hdr="${DEFAULT_HDR:-disable}"
+_keep_displays="${DEFAULT_KEEP_DISPLAYS:-}"
 _seat_display="${DEFAULT_SEAT_DISPLAY:-DP-3}"
 _stream_display="${DEFAULT_STREAM_DISPLAY:-HDMI-A-1}"
 _client_height="${SUNSHINE_CLIENT_HEIGHT:-720}"
@@ -84,6 +85,7 @@ _res_override=''
 function get_connectors_list() {
 	for edid in /sys/class/drm/card*-*-*/; do
 		case "${edid}" in *-Writeback-*) continue ;; *) ;; esac
+		[[ $(<"${edid}"/status) == "connected" ]] || continue
 		edid="${edid%/}"      # Remove trailing slash
 		edid="${edid##*/}"    # Get basename
 		echo "${edid#card*-}" # Remove card*- prefix using glob pattern
@@ -133,8 +135,12 @@ function KDE::do() {
 	mapfile -t all_connectors < <(get_connectors_list) || true
 	for connector in "${all_connectors[@]}"; do
 		if [[ ${connector} != "${_stream_display}" ]]; then
+			if [[ " ${_keep_displays} " == *" ${connector} "* ]]; then
+				log::info "Keeping ${connector} enabled"
+				continue
+			fi
 			log::info "Disabling ${connector}"
-			log::info "$(kscreen-doctor output."${connector}".disable))"
+			log::info "$(kscreen-doctor output."${connector}".disable)"
 		fi
 	done
 }
@@ -142,6 +148,8 @@ function KDE::undo() {
 	log::info "Restoring ${_seat_display} to default configuration"
 	log::info "Enabling ${_seat_display}"
 	kscreen-doctor output."${_seat_display}".enable
+	log::info "Making ${_seat_display} the primary display"
+	kscreen-doctor output."${_seat_display}".primary
 	log::info "Switching ${_seat_display} to ${_seat_resolution}@${_seat_refresh_rate}"
 	kscreen-doctor output."${_seat_display}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
 	log::info "Configuring HDR/WCG/VRR for ${_seat_display}"
@@ -296,7 +304,7 @@ generic::x11::undo() {
 	log::info "UNIMPLEMENTED"
 }
 function handle_arguments() {
-	Handle client resolution override via a command-line parameter
+	# Handle client resolution override via a command-line parameter
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
 			-r|--res-override)
@@ -336,6 +344,7 @@ function mainloop() {
 	_client_width=${_client_width}
 	_client_refresh_rate=${_client_refresh_rate}
 	_default_hdr=${_default_hdr}
+	_keep_displays=${_keep_displays}
 	XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP}
 	XDG_SESSION_DESKTOP=${XDG_SESSION_DESKTOP}
 	AMD_DEBUG=${AMD_DEBUG}
