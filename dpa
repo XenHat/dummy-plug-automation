@@ -350,6 +350,11 @@ function mainloop() {
 	AMD_DEBUG=${AMD_DEBUG}
 	RADV_PERFTEST=${RADV_PERFTEST}"
 
+	if [[ -z "$1" ]]; then
+		log::warning "No action provided; doing nothing"
+		return
+	fi
+
 	case "${XDG_CURRENT_DESKTOP}" in
 	"GNOME" | "KDE" | "niri")
 		"${XDG_CURRENT_DESKTOP}::get_display_configuration"
