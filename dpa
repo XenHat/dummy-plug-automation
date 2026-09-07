@@ -258,6 +258,101 @@ function niri::undo() {
 	fi
 	log::info "Done"
 }
+function Hyprland::get_display_configuration() {
+	_json_display_config=$(hyprctl monitors all -j)
+	mapfile -t outputs_list < <(echo "${_json_display_config}" | jq -r '.[] | .name')
+	log::info "outputs_list: ${outputs_list[*]}"
+	# Use jq to check if monitors exist by name
+	if [[ "$(echo "${_json_display_config}" | jq -r 'map(select(.name == "'"${_stream_display}"'") | .name) | length')" -gt 0 ]]; then
+		_has_stream_display=true
+	fi
+	if [[ "$(echo "${_json_display_config}" | jq -r 'map(select(.name == "'"${_seat_display}"'") | .name) | length')" -gt 0 ]]; then
+		_has_seat_display=true
+	fi
+	log::info "Stream Display Present: ${_has_stream_display}"
+	log::info "Seat   Display Present: ${_has_seat_display}"
+}
+function Hyprland::do() {
+	if [[ -z ${_stream_display} ]]; then
+		log::error "Stream display not set!"
+		return 0
+	fi
+	log::info "Enabling ${_stream_display}"
+	hyprctl eval 'hl.monitor({ output = "'"${_stream_display}"'", disabled = false })'
+
+
+	log::info "Configuring ${_stream_display} for streaming"
+	adjusted_hz=$(printf '%.0f' "${_client_refresh_rate}")
+
+	# Determine HDR mode
+	HDR_MODE=disable
+	if [[ ${_client_hdr} == "true" ]]; then
+		HDR_MODE="enable"
+	fi
+	# log::info "$([[ ${_client_hdr} == "true" ]] && echo "Enabling" || echo "Disabling") HDR for ${_stream_display}" || true
+	log::info "Setting '${_stream_display}' to ${_client_width}x${_client_height}@${adjusted_hz}"
+	hyprctl eval 'hl.monitor({ output = "'"${_stream_display}"'", mode = "'"${_client_width}"'x'"${_client_height}"'@'"${_client_refresh_rate}"'" })'
+	# log::info "$(kscreen-doctor output."${_stream_display}".mode."${_client_width}"x"${_client_height}"@"${adjusted_hz}")"
+	# log::info "Configuring HDR/WCG for ${_stream_display}"
+	# log::info "$(kscreen-doctor output."${_stream_display}".hdr."${HDR_MODE}" output."${_stream_display}".wcg."${HDR_MODE}")"
+
+	# Disable all other displays
+	log::info "Waiting before disabling other displays..."
+	sleep 1
+	local -a all_connectors
+	mapfile -t all_connectors < <(get_connectors_list) || true
+	for connector in "${all_connectors[@]}"; do
+		if [[ ${connector} != "${_stream_display}" ]]; then
+			if [[ " ${_keep_displays} " == *" ${connector} "* ]]; then
+				log::info "Keeping ${connector} enabled"
+				continue
+			fi
+			log::info "Disabling ${connector}"
+			hyprctl eval 'hl.monitor({ output = "'"${connector}"'", disabled = true })'
+			# log::info "$(kscreen-doctor output."${connector}".disable)"
+		fi
+	done
+}
+function Hyprland::undo() {
+	log::info "Restoring ${_seat_display} to default configuration"
+	log::info "Enabling ${_seat_display}"
+	# kscreen-doctor output."${_seat_display}".enable
+	hyprctl eval 'hl.monitor({ output = "'"${_seat_display}"'", disabled = true })'
+	# log::info "Making ${_seat_display} the primary display"
+	# kscreen-doctor output."${_seat_display}".primary
+	log::info "Switching ${_seat_display} to ${_seat_resolution}@${_seat_refresh_rate}"
+	# kscreen-doctor output."${_seat_display}".mode."${_seat_resolution}"@"${_seat_refresh_rate}"
+	hyprctl eval 'hl.monitor({ output = "'"${_seat_display}"'", mode = "'"${_seat_resolution}"'@'"${_seat_refresh_rate}"'})'
+	# log::info "Configuring HDR/WCG/VRR for ${_seat_display}"
+	# kscreen-doctor output."${_seat_display}".hdr."${_default_hdr}" output."${_seat_display}".wcg."${_default_hdr}" output."${_seat_display}".vrrpolicy."${_default_vrr_mode}"
+
+	# Cache connectors list to avoid repeated subshell spawning
+	local -a all_connectors
+	mapfile -t all_connectors < <(get_connectors_list) || true
+
+	# Enable and configure other connectors
+	for connector in "${all_connectors[@]}"; do
+		if [[ ${connector} == "${_stream_display}" ]] && [[ ${_stream_display} != "${_seat_display}" ]]; then
+			log::info "Skipping stream display ${connector}"
+			continue
+		fi
+		if [[ ${connector} != "${_seat_display}" ]]; then
+			log::info "Enabling ${connector}"
+			# log::info "$(kscreen-doctor output."${connector}".enable)"
+			hyprctl eval 'hl.monitor({ output = "'"${connector}"'", disabled = false })'
+		fi
+	done
+	# Disable stream output last
+	if [[ ${_stream_display} != "${_seat_display}" ]]; then
+		log::info "Waiting before disabling stream display..."
+		sleep 1
+		log::info "Disabling ${_stream_display}"
+		# log::info "$(kscreen-doctor output."${_stream_display}".disable)"
+		hyprctl eval 'hl.monitor({ output = "'"${_stream_display}"'", disabled = true })'
+	else
+		log::info "Not doing anything else because Stream Display isn't different than Seat display (${_stream_display} != ${_seat_display})"
+	fi
+}
 generic::detect_session() {
 	local session_type
 	# Get systemd session type
@@ -356,7 +451,7 @@ function mainloop() {
 	fi
 
 	case "${XDG_CURRENT_DESKTOP}" in
-	"GNOME" | "KDE" | "niri")
+	"GNOME" | "KDE" | "niri" | "Hyprland")
 		"${XDG_CURRENT_DESKTOP}::get_display_configuration"
 		# "${XDG_CURRENT_DESKTOP}::get_closest_mode"
 		"${XDG_CURRENT_DESKTOP}::$1"
