@@ -1,5 +1,11 @@
-
-
-# [epiq]: local hydrated state is never committed
-.epiq/events/
-.epiq/log/
+# Ignore everything
+/*
+# Track files explicitly
+!/.gitignore
+!/dpa
+!/README.md
+!/LICENSE.md
+!/utils/monitor-fallback.bash
+!/utils/log_dpa
+!/utils/monitor-fallback.service
+!/utils/monitor-fallback.timer
