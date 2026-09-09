@@ -280,7 +280,6 @@ function Hyprland::do() {
 	log::info "Enabling ${_stream_display}"
 	hyprctl eval 'hl.monitor({ output = "'"${_stream_display}"'", disabled = false })'
 
-
 	log::info "Configuring ${_stream_display} for streaming"
 	adjusted_hz=$(printf '%.0f' "${_client_refresh_rate}")
 
@@ -291,8 +290,7 @@ function Hyprland::do() {
 	fi
 	# log::info "$([[ ${_client_hdr} == "true" ]] && echo "Enabling" || echo "Disabling") HDR for ${_stream_display}" || true
 	log::info "Setting '${_stream_display}' to ${_client_width}x${_client_height}@${adjusted_hz}"
-	hyprctl eval 'hl.monitor({ output = "'"${_stream_display}"'", mode = "'"${_client_width}"'x'"${_client_height}"'@'"${_client_refresh_rate}"'" })'
-	# log::info "$(kscreen-doctor output."${_stream_display}".mode."${_client_width}"x"${_client_height}"@"${adjusted_hz}")"
+	hyprctl eval 'hl.monitor({ output = "'"${_stream_display}"'", mode = "'"${_client_width}"'x'"${_client_height}"'@'"${adjusted_hz}"'" })'
 	# log::info "Configuring HDR/WCG for ${_stream_display}"
 	# log::info "$(kscreen-doctor output."${_stream_display}".hdr."${HDR_MODE}" output."${_stream_display}".wcg."${HDR_MODE}")"
 
@@ -309,7 +307,6 @@ function Hyprland::do() {
 			fi
 			log::info "Disabling ${connector}"
 			hyprctl eval 'hl.monitor({ output = "'"${connector}"'", disabled = true })'
-			# log::info "$(kscreen-doctor output."${connector}".disable)"
 		fi
 	done
 }
